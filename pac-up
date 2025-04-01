@@ -1,0 +1,472 @@
+#!/bin/bash
+# shellcheck disable=SC2086
+
+## VARIABLES ##
+# Default values (overridable by config or CLI)
+EXPORT_VARS=""
+ENABLE_SYSTEM_UPDATE=true
+ENABLE_AUR_UPDATE=false
+ENABLE_CACHE_CLEAN=true
+ENABLE_ORPHAN_CLEANUP=true
+ENABLE_KERNEL_CLEANUP=true
+ENABLE_NEWS_CHECK=true
+ENABLE_MIRROR_OPTIMIZATION=false
+ENABLE_LOGGING=false
+INTERACTIVE=true
+NICE_LEVEL=10
+USE_IONICE=true
+IONICE_CLASS=2
+IONICE_LEVEL=7
+# MIRROR_COUNTRIES: Comma-separated list of countries for mirror optimization.
+# - For reflector: Use 2-letter ISO codes (e.g., "US,DE").
+# - For pacman-mirrors: Use full names (e.g., "United_States,Germany").
+# - Leave empty to use GeoIP-based selection.
+MIRROR_COUNTRIES=""
+REFLECTOR_COUNT=10
+
+# Binaries (auto-detected if blank)
+PACMANBIN=""
+PACCACHEBIN=""
+AURHELPERBIN=""
+REFLECTORBIN=""
+PACMANMIRRORSBIN=""
+CURLBIN=""
+
+## FUNCTIONS ##
+export black='\033[0m'
+export boldblack='\033[1;0m'
+export red='\033[31m'
+export boldred='\033[1;31m'
+export green='\033[32m'
+export boldgreen='\033[1;32m'
+export yellow='\033[33m'
+export boldyellow='\033[1;33m'
+export blue='\033[34m'
+export boldblue='\033[1;34m'
+export magenta='\033[35m'
+export boldmagenta='\033[1;35m'
+export cyan='\033[36m'
+export boldcyan='\033[1;36m'
+export white='\033[37m'
+export boldwhite='\033[1;37m'
+
+cecho() {
+	local default_msg=" "
+	message=${1:-$default_msg}
+	color=${2:-black}
+	case $color in
+		black) printf '%b' "$black" ;;
+		boldblack) printf '%b' "$boldblack" ;;
+		red) printf '%b' "$red" ;;
+		boldred) printf '%b' "$boldred" ;;
+		green) printf '%b' "$green" ;;
+		boldgreen) printf '%b' "$boldgreen" ;;
+		yellow) printf '%b' "$yellow" ;;
+		boldyellow) printf '%b' "$boldyellow" ;;
+		blue) printf '%b' "$blue" ;;
+		boldblue) printf '%b' "$boldblue" ;;
+		magenta) printf '%b' "$magenta" ;;
+		boldmagenta) printf '%b' "$boldmagenta" ;;
+		cyan) printf '%b' "$cyan" ;;
+		boldcyan) printf '%b' "$boldcyan" ;;
+		white) printf '%b' "$white" ;;
+		boldwhite) printf '%b' "$boldwhite" ;;
+	esac
+	printf "%s\n" "$message"
+	tput sgr0
+	printf '%b' "$black"
+	if [ "$ENABLE_LOGGING" = "true" ]; then
+		echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" >> "$LOG_FILE"
+	fi
+	return
+}
+
+Error_Handler() {
+	cecho "[FATAL] Script aborted while $CURRENT_STEP." boldred
+	echo
+	Run_Hooks "fail"
+	exit 1
+}
+
+Warn_Handler() {
+	cecho "[WARNING] Something unexpected happened while $CURRENT_STEP." boldyellow
+	cecho "[INFO] Continuing anyway..." cyan
+}
+
+Set_BASH_Options() {
+	CURRENT_STEP="setting BASH options"
+	if [ -z "$BASH_VERSION" ]; then
+		cecho "[WARNING] This script wasn't run in BASH (are you using 'sh'?)" boldyellow
+		cecho "          It may function, but error handling will be less robust." boldyellow
+		if [ "$INTERACTIVE" = "true" ]; then
+			read -r -p "==> Continue anyway? [N/y] " REPLY
+			case "$REPLY" in
+				([yY]|[yY][eE][sS]) echo "" ;;
+				(*) echo ; Error_Handler ;;
+			esac
+		else
+			cecho "[INFO] Non-interactive mode, continuing despite non-BASH shell." cyan
+		fi
+	else
+		set -o pipefail
+		trap 'Error_Handler' ERR
+	fi
+}
+
+Show_Help() {
+	cat << EOF
+pac-up - Comprehensive update script for Arch Linux and derivatives
+
+Usage: pac-up [OPTIONS]
+
+Options:
+  --no-interactive       Run without user interaction
+  --no-system-update     Skip system package updates
+  --no-aur               Skip AUR updates (requires yay/paru)
+  --no-cache-clean       Skip package cache cleanup
+  --no-orphan-cleanup    Skip orphaned package removal
+  --no-kernel-cleanup    Skip old kernel removal
+  --no-news              Skip Arch news check
+  --optimize-mirrors     Optimize mirror list (reflector or pacman-mirrors)
+  --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
+  --mirror-count=NUM     Set number of mirrors for reflector (default: 10)
+  --install              Create sample config and hook directories
+  --help                 Display this help message
+
+See /etc/pac-up.conf for more configuration options.
+EOF
+}
+
+Parse_Arguments() {
+	CURRENT_STEP="parsing command line arguments"
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--no-interactive) INTERACTIVE=false ;;
+			--no-system-update) ENABLE_SYSTEM_UPDATE=false ;;
+			--no-aur) ENABLE_AUR_UPDATE=false ;;
+			--no-cache-clean) ENABLE_CACHE_CLEAN=false ;;
+			--no-orphan-cleanup) ENABLE_ORPHAN_CLEANUP=false ;;
+			--no-kernel-cleanup) ENABLE_KERNEL_CLEANUP=false ;;
+			--no-news) ENABLE_NEWS_CHECK=false ;;
+			--optimize-mirrors) ENABLE_MIRROR_OPTIMIZATION=true ;;
+			--mirror-countries=*) MIRROR_COUNTRIES="${1#*=}" ;;
+			--mirror-count=*) REFLECTOR_COUNT="${1#*=}" ;;
+			--install) Create_Sample_Config; Create_Hook_Dirs; exit 0 ;;
+			--help) Show_Help; exit 0 ;;
+			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
+		esac
+		shift
+	done
+	if ! [[ "$REFLECTOR_COUNT" =~ ^[0-9]+$ ]] || [ "$REFLECTOR_COUNT" -lt 1 ]; then
+		cecho "[WARNING] Invalid mirror count '$REFLECTOR_COUNT', defaulting to 10" boldyellow
+		REFLECTOR_COUNT=10
+	fi
+}
+
+Load_Config() {
+	CURRENT_STEP="loading configuration"
+	CONFIG_FILE="/etc/pac-up.conf"
+	if [ -f "$CONFIG_FILE" ]; then
+		cecho "[INFO] Loading configuration from $CONFIG_FILE" cyan
+		source "$CONFIG_FILE"
+	else
+		cecho "[INFO] No config file at $CONFIG_FILE, using defaults" cyan
+	fi
+}
+
+Create_Sample_Config() {
+	CURRENT_STEP="creating sample configuration"
+	cat > "/etc/pac-up.conf.sample" << 'EOT'
+# Configuration file for pac-up
+# Copy to /etc/pac-up.conf and modify as needed
+
+EXPORT_VARS=""
+ENABLE_SYSTEM_UPDATE=true
+ENABLE_AUR_UPDATE=false
+ENABLE_CACHE_CLEAN=true
+ENABLE_ORPHAN_CLEANUP=true
+ENABLE_KERNEL_CLEANUP=true
+ENABLE_NEWS_CHECK=true
+ENABLE_MIRROR_OPTIMIZATION=false
+ENABLE_LOGGING=false
+NICE_LEVEL=10
+USE_IONICE=true
+IONICE_CLASS=2
+IONICE_LEVEL=7
+# MIRROR_COUNTRIES: Comma-separated list of countries for mirror optimization.
+# - For reflector: Use 2-letter ISO codes (e.g., "US,DE").
+# - For pacman-mirrors: Use full names (e.g., "United_States,Germany").
+# - Leave empty to use GeoIP-based selection.
+MIRROR_COUNTRIES=""
+REFLECTOR_COUNT=10
+EOT
+cecho "[INFO] Sample config created at /etc/pac-up.conf.sample" cyan
+}
+
+Create_Hook_Dirs() {
+	CURRENT_STEP="creating hook directories"
+	mkdir -p "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
+	chmod 755 "${HOOKS_DIR}" "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
+	cecho "[INFO] Hook directories created at ${HOOKS_DIR}" cyan
+}
+
+Apply_Resource_Limits() {
+	CURRENT_STEP="applying resource limits"
+	if [ "$INTERACTIVE" = "false" ]; then
+		cecho "[INFO] Setting CPU priority (nice level: $NICE_LEVEL)" cyan
+		renice -n "$NICE_LEVEL" -p $$ >/dev/null 2>&1 || Warn_Handler
+		if [ "$USE_IONICE" = "true" ] && command -v ionice >/dev/null 2>&1; then
+			cecho "[INFO] Setting I/O priority (class: $IONICE_CLASS, level: $IONICE_LEVEL)" cyan
+			ionice -c "$IONICE_CLASS" -n "$IONICE_LEVEL" -p $$ >/dev/null 2>&1 || Warn_Handler
+		fi
+	fi
+}
+
+Run_Hooks() {
+	CURRENT_STEP="running user-defined hooks"
+	local hook_type="$1"
+	if [ "$ENABLE_HOOKS" != "true" ] || [ ! -d "${HOOKS_DIR}/${hook_type}.d" ]; then
+		return 0
+	fi
+	cecho "[INFO] Running $hook_type hooks" cyan
+	find "${HOOKS_DIR}/${hook_type}.d" -type f -executable | sort | while read -r hook; do
+	hook_name=$(basename "$hook")
+	cecho "[INFO] Running hook: $hook_name" cyan
+	"$hook"
+	hook_status=$?
+	if [ "$hook_status" -ne 0 ]; then
+		Warn_Handler
+		if [[ "$hook_name" =~ ^[0-9][0-9]-critical- ]]; then
+			cecho "[ERROR] Critical hook $hook_name failed with exit code $hook_status" red
+			Error_Handler
+		fi
+	fi
+done
+}
+
+Initialize_Logging() {
+	if [ "$ENABLE_LOGGING" = "true" ]; then
+		CURRENT_STEP="initializing logging"
+		LOG_DIR=$(dirname "$LOG_FILE")
+		mkdir -p "$LOG_DIR" || {
+			cecho "[WARNING] Could not create $LOG_DIR, disabling logging" boldyellow
+					ENABLE_LOGGING=false
+					return
+				}
+				echo "==== pac-up run started at $(date) ====" >> "$LOG_FILE"
+	fi
+}
+
+Detect_Bin_Paths() {
+	CURRENT_STEP="detecting binary paths"
+	PACMANBIN=$(which pacman) || Error_Handler
+	PACCACHEBIN=$(which paccache) || cecho "[INFO] paccache not found, cache cleanup will be basic" cyan
+	CURLBIN=$(which curl) || cecho "[INFO] curl not found, news check will be skipped" cyan
+	REFLECTORBIN=$(which reflector) || cecho "[INFO] reflector not found, checking for pacman-mirrors..." cyan
+	PACMANMIRRORSBIN=$(which pacman-mirrors) || cecho "[INFO] pacman-mirrors not found either" cyan
+	if command -v yay >/dev/null 2>&1; then
+		AURHELPERBIN=$(which yay)
+	elif command -v paru >/dev/null 2>&1; then
+		AURHELPERBIN=$(which paru)
+	fi
+}
+
+Sanity_Check() {
+	CURRENT_STEP="performing sanity check"
+	if [ ! -f "$PACMANBIN" ]; then
+		cecho "[ERROR] pacman not found. Is this an Arch-based system?" red
+		Error_Handler
+	fi
+	if [ "$ENABLE_NEWS_CHECK" = "true" ] && [ ! -f "$CURLBIN" ]; then
+		cecho "[WARNING] curl not found, disabling news check" boldyellow
+		ENABLE_NEWS_CHECK=false
+	fi
+	if [ "$ENABLE_MIRROR_OPTIMIZATION" = "true" ]; then
+		if [ ! -f "$REFLECTORBIN" ] && [ ! -f "$PACMANMIRRORSBIN" ]; then
+			cecho "[WARNING] Neither reflector nor pacman-mirrors found, disabling mirror optimization" boldyellow
+			ENABLE_MIRROR_OPTIMIZATION=false
+		elif [ ! -f "$REFLECTORBIN" ]; then
+			cecho "[INFO] Will use pacman-mirrors if available" cyan
+		fi
+	fi
+}
+
+Optimize_Mirrors() {
+	CURRENT_STEP="optimizing mirror list"
+	if [ "$ENABLE_MIRROR_OPTIMIZATION" = "true" ]; then
+		if [ -n "$REFLECTORBIN" ]; then
+			if [ -n "$MIRROR_COUNTRIES" ]; then
+				cecho "[INFO] Optimizing mirror list with reflector (countries: $MIRROR_COUNTRIES, count: $REFLECTOR_COUNT)..." cyan
+				$REFLECTORBIN --protocol https --country "$MIRROR_COUNTRIES" --latest "$REFLECTOR_COUNT" --sort rate --save /etc/pacman.d/mirrorlist || Warn_Handler
+			else
+				cecho "[INFO] Optimizing mirror list with reflector (using geoip, count: $REFLECTOR_COUNT)..." cyan
+				$REFLECTORBIN --protocol https --country-geoip --latest "$REFLECTOR_COUNT" --sort rate --save /etc/pacman.d/mirrorlist || Warn_Handler
+			fi
+		elif [ -n "$PACMANMIRRORSBIN" ]; then
+			if [ -n "$MIRROR_COUNTRIES" ]; then
+				cecho "[INFO] Optimizing mirror list with pacman-mirrors (countries: $MIRROR_COUNTRIES)..." cyan
+				$PACMANMIRRORSBIN --country "$MIRROR_COUNTRIES" --method rank || Warn_Handler
+			else
+				cecho "[INFO] Optimizing mirror list with pacman-mirrors (using geoip)..." cyan
+				$PACMANMIRRORSBIN --geoip --method rank || Warn_Handler
+			fi
+			cecho "[INFO] Syncing after pacman-mirrors..." cyan
+			$PACMANBIN -Syy || Warn_Handler
+		else
+			cecho "[INFO] No mirror optimization tools available, skipping" cyan
+		fi
+	fi
+}
+
+Check_Arch_News() {
+	CURRENT_STEP="checking Arch news"
+	if [ "$ENABLE_NEWS_CHECK" = "true" ] && [ -n "$CURLBIN" ]; then
+		cecho "[INFO] Fetching latest Arch news..." cyan
+		$CURLBIN -s "https://archlinux.org/feeds/news/" |
+			grep -o "<title>[^<]*</title>" |
+			grep -v "Arch Linux: Recent news updates" |
+			sed 's/<title>\(.*\)<\/title>/\1/' |
+			head -n 5 |
+			nl -w2 -s ". " || Warn_Handler
+	fi
+}
+
+Update_System() {
+	CURRENT_STEP="updating system packages"
+	cecho "[INFO] Updating package database and system..." cyan
+	$PACMANBIN -Syu $PAC_OPTS || Warn_Handler
+}
+
+Update_AUR() {
+	CURRENT_STEP="updating AUR packages"
+	if [ "$ENABLE_AUR_UPDATE" = "true" ] && [ -n "$AURHELPERBIN" ]; then
+		cecho "[WARNING] AUR updates require running as a non-root user for safety." boldyellow
+		cecho "[INFO] Using $AURHELPERBIN as $SUDO_USER..." cyan
+		if [ "$INTERACTIVE" = "false" ]; then
+			sudo -u "$SUDO_USER" $AURHELPERBIN -Syu --noconfirm || Warn_Handler
+		else
+			sudo -u "$SUDO_USER" $AURHELPERBIN -Syu || Warn_Handler
+		fi
+	fi
+}
+
+Clean_Cache() {
+	CURRENT_STEP="cleaning package cache"
+	if [ -n "$PACCACHEBIN" ]; then
+		cecho "[INFO] Keeping last 3 versions of cached packages..." cyan
+		$PACCACHEBIN -r || Warn_Handler
+	else
+		cecho "[INFO] Removing all untracked package files (paccache not available)..." cyan
+		$PACMANBIN -Sc $PAC_OPTS || Warn_Handler
+	fi
+}
+
+Clean_Orphans() {
+	CURRENT_STEP="removing orphaned packages"
+	ORPHANS=$($PACMANBIN -Qtdq)
+	if [ -n "$ORPHANS" ]; then
+		cecho "[INFO] Removing orphaned packages..." cyan
+		$PACMANBIN -Rns $PAC_OPTS $ORPHANS || Warn_Handler
+	else
+		cecho "[INFO] No orphaned packages found." cyan
+	fi
+}
+
+Kernel_Cleanup() {
+	CURRENT_STEP="cleaning old kernels"
+	CURRENT_KERNEL=$(uname -r)
+	INSTALLED_KERNELS=$($PACMANBIN -Q | grep -E "^linux(-[a-z0-9]+)?($|-headers)" | awk '{print $1}')
+	PREVIOUS_KERNEL=$(echo "$INSTALLED_KERNELS" | grep -v "$CURRENT_KERNEL" | grep -v "-headers" | sort -V | tail -n 1)
+	TO_REMOVE=$(echo "$INSTALLED_KERNELS" | grep -v "$CURRENT_KERNEL" | grep -v "$PREVIOUS_KERNEL" | tr '\n' ' ')
+	if [ -n "$TO_REMOVE" ]; then
+		cecho "[INFO] Removing old kernels: $TO_REMOVE" cyan
+		$PACMANBIN -Rns $PAC_OPTS $TO_REMOVE || Warn_Handler
+	else
+		cecho "[INFO] No old kernels to remove." cyan
+	fi
+}
+
+## EXECUTION ##
+Set_BASH_Options
+Parse_Arguments "$@"
+Load_Config
+Initialize_Logging
+Detect_Bin_Paths
+Sanity_Check
+Apply_Resource_Limits
+
+PAC_OPTS=""
+[ "$INTERACTIVE" = "false" ] && PAC_OPTS="-y"
+
+Run_Hooks "pre"
+
+cecho " ________________________________ " boldblue
+cecho "/ Exporting global variables...  \ " boldblue
+cecho "\________________________________/ " boldblue
+for CURRENT_EXPORT in ${EXPORT_VARS}; do
+	cecho "[INFO] Exporting: ${CURRENT_EXPORT}" cyan
+	export "${CURRENT_EXPORT?}"
+done
+
+[ "$ENABLE_MIRROR_OPTIMIZATION" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Optimizing mirror list...      \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Optimize_Mirrors
+}
+
+[ "$ENABLE_NEWS_CHECK" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Checking Arch news...          \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Check_Arch_News
+}
+
+[ "$ENABLE_SYSTEM_UPDATE" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Updating system packages...    \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Update_System
+}
+
+[ "$ENABLE_AUR_UPDATE" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Updating AUR packages...       \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Update_AUR
+}
+
+[ "$ENABLE_CACHE_CLEAN" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Cleaning package cache...      \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Clean_Cache
+}
+
+[ "$ENABLE_ORPHAN_CLEANUP" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Removing orphaned packages...  \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Clean_Orphans
+}
+
+[ "$ENABLE_KERNEL_CLEANUP" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Cleaning old kernels...        \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Kernel_Cleanup
+}
+
+cecho " ________________________________ " boldblue
+cecho "/ Syncing buffers to disk...     \ " boldblue
+cecho "\________________________________/ " boldblue
+timeout 60s sync || Warn_Handler
+cecho "[INFO] Synced." cyan
+
+Run_Hooks "post"
+
+[ "$ENABLE_LOGGING" = "true" ] && echo "==== pac-up run completed at $(date) ====" >> "$LOG_FILE"
+
+cecho " ________________________________ " boldblue
+cecho "/           Finished.            \ " boldblue
+cecho "\________________________________/ " boldblue
