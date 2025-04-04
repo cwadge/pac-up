@@ -22,7 +22,7 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
 - **Logging:** Optional logs to /var/log/pac-up.log.
 
 ## Requirements
-- `Arch Linux`-based system (e.g., Arch, Manjaro, etc.)
+- `Arch Linux`-based system (e.g. Arch, Manjaro, etc.)
 
 - `Bash` (works with sh, but error handling’s weaker).
 
@@ -93,17 +93,17 @@ sudo pac-up --no-interactive
  --optimize-mirrors       Optimize mirror list
  --mirror-countries=LIST  Set countries (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
  --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
- --install                Create sample config and hooks
+ --install                Create config and hook directories
  --help                   Show help message
  ```
 ### Configuration
 
-Edit `/etc/pac-up.conf` (optional, see sample at `/etc/pac-up.conf.sample` after `sudo pac-up --install`).
+Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
 
 ## Example Run
 Here’s what it looks like in action, optimizing mirrors and cleaning up:
 ```
- [INFO] No config file at /etc/pac-up.conf, using defaults
+[INFO] No config file at /etc/pac-up.conf, using defaults
 which: no reflector in (/usr/local/sbin:/usr/local/bin:/usr/bin)
 [INFO] reflector not found, checking for pacman-mirrors...
 [INFO] Will use pacman-mirrors if available
@@ -173,7 +173,7 @@ If you want to extend pac-up’s functionality, you can add custom scripts to:
 
 Scripts with `critical` in the name (e.g., `00-critical-check.sh`) halt execution if they fail.
 
-Run `sudo pac-up --install` to create these directories with a sample hook.
+Run `sudo pac-up --install` to create these directories (with a sample hook in `pre.d`).
 
 ## License
 

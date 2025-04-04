@@ -120,18 +120,18 @@ pac-up - Comprehensive update script for Arch Linux and derivatives
 Usage: pac-up [OPTIONS]
 
 Options:
-  --no-interactive       Run without user interaction
-  --no-system-update     Skip system package updates
-  --no-aur               Skip AUR updates (requires yay/paru)
-  --no-cache-clean       Skip package cache cleanup
-  --no-orphan-cleanup    Skip orphaned package removal
-  --no-kernel-cleanup    Skip old kernel removal
-  --no-news              Skip Arch news check
-  --optimize-mirrors     Optimize mirror list (reflector or pacman-mirrors)
+  --no-interactive         Run without user interaction
+  --no-system-update       Skip system package updates
+  --no-aur                 Skip AUR updates (requires yay/paru)
+  --no-cache-clean         Skip package cache cleanup
+  --no-orphan-cleanup      Skip orphaned package removal
+  --no-kernel-cleanup      Skip old kernel removal
+  --no-news                Skip Arch news check
+  --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
   --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
-  --mirror-count=NUM     Set number of mirrors for reflector (default: 10)
-  --install              Create sample config and hook directories
-  --help                 Display this help message
+  --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
+  --install                Create config and hook directories
+  --help                   Display this help message
 
 See /etc/pac-up.conf for more configuration options.
 EOF
@@ -151,7 +151,7 @@ Parse_Arguments() {
 			--optimize-mirrors) ENABLE_MIRROR_OPTIMIZATION=true ;;
 			--mirror-countries=*) MIRROR_COUNTRIES="${1#*=}" ;;
 			--mirror-count=*) REFLECTOR_COUNT="${1#*=}" ;;
-			--install) Create_Sample_Config; Create_Hook_Dirs; exit 0 ;;
+			--install) Create_Config; Create_Hook_Dirs; exit 0 ;;
 			--help) Show_Help; exit 0 ;;
 			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
 		esac
@@ -174,11 +174,11 @@ Load_Config() {
 	fi
 }
 
-Create_Sample_Config() {
-	CURRENT_STEP="creating sample configuration"
-	cat > "/etc/pac-up.conf.sample" << 'EOT'
+Create_Config() {
+	CURRENT_STEP="creating configuration"
+	cat > "/etc/pac-up.conf" << 'EOT'
 # Configuration file for pac-up
-# Copy to /etc/pac-up.conf and modify as needed
+# Re-run with --install to reset to defaults
 
 EXPORT_VARS=""
 ENABLE_SYSTEM_UPDATE=true
@@ -200,7 +200,7 @@ IONICE_LEVEL=7
 MIRROR_COUNTRIES=""
 REFLECTOR_COUNT=10
 EOT
-cecho "[INFO] Sample config created at /etc/pac-up.conf.sample" cyan
+cecho "[INFO] Initial config created at /etc/pac-up.conf" cyan
 }
 
 Create_Hook_Dirs() {
