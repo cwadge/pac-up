@@ -205,6 +205,7 @@ cecho "[INFO] Initial config created at /etc/pac-up.conf" cyan
 
 Create_Hook_Dirs() {
 	CURRENT_STEP="creating hook directories"
+	HOOKS_DIR="/etc/pac-up.d"
 	mkdir -p "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	chmod 755 "${HOOKS_DIR}" "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	cecho "[INFO] Hook directories created at ${HOOKS_DIR}" cyan
