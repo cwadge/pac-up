@@ -464,7 +464,6 @@ cecho " ________________________________ " boldblue
 cecho "/ Syncing buffers to disk...     \ " boldblue
 cecho "\________________________________/ " boldblue
 timeout 60s sync || Warn_Handler
-cecho "[INFO] Synced." cyan
 
 Run_Hooks "post"
 
