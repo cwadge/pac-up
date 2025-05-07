@@ -89,6 +89,7 @@ sudo pac-up --no-interactive
  --no-orphan-cleanup      Skip orphaned package removal
  --no-kernel-cleanup      Skip old kernel removal
  --no-news                Skip Arch news check
+ --no-hooks               Skip running hook scripts
  --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
  --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
  --mirror-count=NUM       Set number of mirrors for reflector (default: 10)

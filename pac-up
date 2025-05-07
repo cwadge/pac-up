@@ -129,6 +129,7 @@ Options:
   --no-orphan-cleanup      Skip orphaned package removal
   --no-kernel-cleanup      Skip old kernel removal
   --no-news                Skip Arch news check
+  --no-hooks               Skip running hook scripts
   --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
   --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
   --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
@@ -151,6 +152,7 @@ Parse_Arguments() {
 			--no-orphan-cleanup) ENABLE_ORPHAN_CLEANUP=false ;;
 			--no-kernel-cleanup) ENABLE_KERNEL_CLEANUP=false ;;
 			--no-news) ENABLE_NEWS_CHECK=false ;;
+			--no-hooks) ENABLE_HOOKS=false ;;
 			--optimize-mirrors) ENABLE_MIRROR_OPTIMIZATION=true ;;
 			--mirror-countries=*) MIRROR_COUNTRIES="${1#*=}" ;;
 			--mirror-count=*) REFLECTOR_COUNT="${1#*=}" ;;
@@ -194,6 +196,7 @@ ENABLE_KERNEL_CLEANUP=true
 ENABLE_NEWS_CHECK=true
 ENABLE_MIRROR_OPTIMIZATION=false
 ENABLE_LOGGING=false
+ENABLE_HOOKS=true
 NICE_LEVEL=10
 USE_IONICE=true
 IONICE_CLASS=2
