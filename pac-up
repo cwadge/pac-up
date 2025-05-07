@@ -175,6 +175,7 @@ Load_Config() {
 	CONFIG_FILE="/etc/pac-up.conf"
 	if [ -f "$CONFIG_FILE" ]; then
 		cecho "[INFO] Loading configuration from $CONFIG_FILE" cyan
+		# shellcheck source=/etc/pac-up.conf
 		source "$CONFIG_FILE"
 	else
 		cecho "[INFO] No config file at $CONFIG_FILE, using defaults" cyan
