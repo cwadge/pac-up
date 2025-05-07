@@ -25,7 +25,8 @@ IONICE_LEVEL=7
 MIRROR_COUNTRIES=""
 REFLECTOR_COUNT=10
 HOOKS_DIR="/etc/pac-up.d"
-
+# AUR_USER: User to run yay/paru as for AUR updates (leave unset for auto-detection)
+AUR_USER=""
 # Binaries (auto-detected if blank)
 PACMANBIN=""
 PACCACHEBIN=""
@@ -124,7 +125,6 @@ Usage: pac-up [OPTIONS]
 Options:
   --no-interactive         Run without user interaction
   --no-system-update       Skip system package updates
-  --no-aur                 Skip AUR updates (requires yay/paru)
   --no-cache-clean         Skip package cache cleanup
   --no-orphan-cleanup      Skip orphaned package removal
   --no-kernel-cleanup      Skip old kernel removal
@@ -132,6 +132,8 @@ Options:
   --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
   --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
   --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
+  --aur-update             Apply AUR updates via specified user account (requires yay/paru)
+  --aur-user=USERNAME      Specify user for AUR updates (overrides config/detection)
   --install                Create config and hook directories
   --help                   Display this help message
 
@@ -145,7 +147,6 @@ Parse_Arguments() {
 		case "$1" in
 			--no-interactive) INTERACTIVE=false ;;
 			--no-system-update) ENABLE_SYSTEM_UPDATE=false ;;
-			--no-aur) ENABLE_AUR_UPDATE=false ;;
 			--no-cache-clean) ENABLE_CACHE_CLEAN=false ;;
 			--no-orphan-cleanup) ENABLE_ORPHAN_CLEANUP=false ;;
 			--no-kernel-cleanup) ENABLE_KERNEL_CLEANUP=false ;;
@@ -153,6 +154,8 @@ Parse_Arguments() {
 			--optimize-mirrors) ENABLE_MIRROR_OPTIMIZATION=true ;;
 			--mirror-countries=*) MIRROR_COUNTRIES="${1#*=}" ;;
 			--mirror-count=*) REFLECTOR_COUNT="${1#*=}" ;;
+			--aur-update) ENABLE_AUR_UPDATE=true ;;
+			--aur-user=*) AUR_USER="${1#*=}" ;;
 			--install) Create_Config; Create_Hook_Dirs; exit 0 ;;
 			--help) Show_Help; exit 0 ;;
 			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
@@ -202,6 +205,8 @@ IONICE_LEVEL=7
 MIRROR_COUNTRIES=""
 REFLECTOR_COUNT=10
 HOOKS_DIR="/etc/pac-up.d"
+# AUR_USER: User to run yay/paru as for AUR updates (leave unset for auto-detection)
+AUR_USER=""
 EOT
 cecho "[INFO] Initial config created at /etc/pac-up.conf" cyan
 }
@@ -265,8 +270,6 @@ Detect_Bin_Paths() {
 	PACMANBIN=$(which pacman) || Error_Handler
 	PACCACHEBIN=$(which paccache) || cecho "[INFO] paccache not found, cache cleanup will be basic" cyan
 	CURLBIN=$(which curl) || cecho "[INFO] curl not found, news check will be skipped" cyan
-	REFLECTORBIN=$(which reflector) || cecho "[INFO] reflector not found, checking for pacman-mirrors..." cyan
-	PACMANMIRRORSBIN=$(which pacman-mirrors) || cecho "[INFO] pacman-mirrors not found either" cyan
 	if command -v yay >/dev/null 2>&1; then
 		AURHELPERBIN=$(which yay)
 	elif command -v paru >/dev/null 2>&1; then
@@ -284,39 +287,37 @@ Sanity_Check() {
 		cecho "[WARNING] curl not found, disabling news check" boldyellow
 		ENABLE_NEWS_CHECK=false
 	fi
-	if [ "$ENABLE_MIRROR_OPTIMIZATION" = "true" ]; then
-		if [ ! -f "$REFLECTORBIN" ] && [ ! -f "$PACMANMIRRORSBIN" ]; then
-			cecho "[WARNING] Neither reflector nor pacman-mirrors found, disabling mirror optimization" boldyellow
-			ENABLE_MIRROR_OPTIMIZATION=false
-		elif [ ! -f "$REFLECTORBIN" ]; then
-			cecho "[INFO] Will use pacman-mirrors if available" cyan
-		fi
-	fi
 }
 
 Optimize_Mirrors() {
 	CURRENT_STEP="optimizing mirror list"
 	if [ "$ENABLE_MIRROR_OPTIMIZATION" = "true" ]; then
+		# Check for reflector first
+		REFLECTORBIN=$(which reflector) || cecho "[INFO] reflector not found, checking for pacman-mirrors..." cyan
 		if [ -n "$REFLECTORBIN" ]; then
 			if [ -n "$MIRROR_COUNTRIES" ]; then
 				cecho "[INFO] Optimizing mirror list with reflector (countries: $MIRROR_COUNTRIES, count: $REFLECTOR_COUNT)..." cyan
 				$REFLECTORBIN --protocol https --country "$MIRROR_COUNTRIES" --latest "$REFLECTOR_COUNT" --sort rate --save /etc/pacman.d/mirrorlist || Warn_Handler
 			else
-				cecho "[INFO] Optimizing mirror list with reflector (using geoip, count: $REFLECTOR_COUNT)..." cyan
-				$REFLECTORBIN --protocol https --country-geoip --latest "$REFLECTOR_COUNT" --sort rate --save /etc/pacman.d/mirrorlist || Warn_Handler
+				cecho "[WARNING] MIRROR_COUNTRIES unset for reflector, using all available mirrors..." boldyellow
+				$REFLECTORBIN --protocol https --latest "$REFLECTOR_COUNT" --sort rate --save /etc/pacman.d/mirrorlist || Warn_Handler
 			fi
-		elif [ -n "$PACMANMIRRORSBIN" ]; then
-			if [ -n "$MIRROR_COUNTRIES" ]; then
-				cecho "[INFO] Optimizing mirror list with pacman-mirrors (countries: $MIRROR_COUNTRIES)..." cyan
-				$PACMANMIRRORSBIN --country "$MIRROR_COUNTRIES" --method rank || Warn_Handler
-			else
-				cecho "[INFO] Optimizing mirror list with pacman-mirrors (using geoip)..." cyan
-				$PACMANMIRRORSBIN --geoip --method rank || Warn_Handler
-			fi
-			cecho "[INFO] Syncing after pacman-mirrors..." cyan
-			$PACMANBIN -Syy || Warn_Handler
 		else
-			cecho "[INFO] No mirror optimization tools available, skipping" cyan
+			# Only check pacman-mirrors if reflector is not found
+			PACMANMIRRORSBIN=$(which pacman-mirrors) || {
+				cecho "[WARNING] pacman-mirrors not found, disabling mirror optimization" boldyellow
+							ENABLE_MIRROR_OPTIMIZATION=false
+							return
+						}
+						if [ -n "$MIRROR_COUNTRIES" ]; then
+							cecho "[INFO] Optimizing mirror list with pacman-mirrors (countries: $MIRROR_COUNTRIES)..." cyan
+							$PACMANMIRRORSBIN --country "$MIRROR_COUNTRIES" --method rank || Warn_Handler
+						else
+							cecho "[INFO] Optimizing mirror list with pacman-mirrors (using geoip)..." cyan
+							$PACMANMIRRORSBIN --geoip --method rank || Warn_Handler
+						fi
+						cecho "[INFO] Syncing after pacman-mirrors..." cyan
+						$PACMANBIN -Syy || Warn_Handler
 		fi
 	fi
 }
@@ -343,13 +344,27 @@ Update_System() {
 Update_AUR() {
 	CURRENT_STEP="updating AUR packages"
 	if [ "$ENABLE_AUR_UPDATE" = "true" ] && [ -n "$AURHELPERBIN" ]; then
-		cecho "[WARNING] AUR updates require running as a non-root user for safety." boldyellow
-		cecho "[INFO] Using $AURHELPERBIN as $SUDO_USER..." cyan
+		# Skip AUR updates in non-interactive mode
 		if [ "$INTERACTIVE" = "false" ]; then
-			sudo -u "$SUDO_USER" $AURHELPERBIN -Syu --noconfirm || Warn_Handler
-		else
-			sudo -u "$SUDO_USER" $AURHELPERBIN -Syu || Warn_Handler
+			cecho "[WARNING] AUR updates are not supported in non-interactive mode, skipping..." boldyellow
+			return
 		fi
+		# Use AUR_USER if set, otherwise fall back to SUDO_USER
+		local aur_user="${AUR_USER:-$SUDO_USER}"
+		if [ -z "$aur_user" ]; then
+			cecho "[ERROR] No user specified for AUR updates (set AUR_USER or run as sudo)" red
+			Warn_Handler
+			return
+		fi
+		if ! id "$aur_user" >/dev/null 2>&1; then
+			cecho "[ERROR] User $aur_user does not exist" red
+			Warn_Handler
+			return
+		fi
+		cecho "[INFO] Using $AURHELPERBIN as $aur_user..." cyan
+		sudo -u "$aur_user" $AURHELPERBIN -Syu || Warn_Handler
+	else
+		cecho "[INFO] AUR updates disabled or no AUR helper found, skipping..." cyan
 	fi
 }
 
@@ -391,8 +406,8 @@ Kernel_Cleanup() {
 
 ## EXECUTION ##
 Set_BASH_Options
-Parse_Arguments "$@"
 Load_Config
+Parse_Arguments "$@"
 Initialize_Logging
 Detect_Bin_Paths
 Sanity_Check
@@ -427,7 +442,7 @@ done
 
 [ "$ENABLE_SYSTEM_UPDATE" = "true" ] && {
 	cecho " ________________________________ " boldblue
-	cecho "/ Updating system packages...    \ " boldblue
+	cecho "/ Updating system packages...    \ " boldness
 	cecho "\________________________________/ " boldblue
 	Update_System
 }

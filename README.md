@@ -83,81 +83,83 @@ sudo pac-up --no-interactive
 
 ### Options
 ```
- --no-interactive         Run without prompts
+ --no-interactive         Run without user interaction
  --no-system-update       Skip system package updates
- --no-aur                 Skip AUR updates
  --no-cache-clean         Skip package cache cleanup
  --no-orphan-cleanup      Skip orphaned package removal
  --no-kernel-cleanup      Skip old kernel removal
  --no-news                Skip Arch news check
- --optimize-mirrors       Optimize mirror list
- --mirror-countries=LIST  Set countries (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
+ --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
+ --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
  --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
+ --aur-update             Apply AUR updates via specified user account (requires yay/paru)
+ --aur-user=USERNAME      Specify user for AUR updates (overrides config/detection)
  --install                Create config and hook directories
- --help                   Show help message
- ```
+ --help                   Display this help message
+```
 ### Configuration
 
 Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
 
 ## Example Run
-Here’s what it looks like in action, optimizing mirrors and cleaning up:
+Here’s what it looks like in action, optimizing mirrors and cleaning up, then running a post-hook script too:
 ```
-[INFO] No config file at /etc/pac-up.conf, using defaults
-which: no reflector in (/usr/local/sbin:/usr/local/bin:/usr/bin)
-[INFO] reflector not found, checking for pacman-mirrors...
-[INFO] Will use pacman-mirrors if available
- ________________________________
-/ Exporting global variables...  \
-\________________________________/
- ________________________________
-/ Optimizing mirror list...      \
-\________________________________/
-[INFO] Optimizing mirror list with pacman-mirrors (using geoip)...
-::INFO Downloading mirrors from Manjaro
-::INFO => Mirror pool: https://repo.manjaro.org/mirrors.json
-::INFO => Mirror status: https://repo.manjaro.org/status.json
-...
-::INFO Mirror list generated and saved to: /etc/pacman.d/mirrorlist
-[INFO] Syncing after pacman-mirrors...
-:: Synchronizing package databases...
- core is up to date
- extra is up to date
- multilib is up to date
- ________________________________
-/ Checking Arch news...          \
-\________________________________/
+$ sudo pac-up --optimize-mirrors --mirror-count=10 --mirror-countries=US --no-interactive --aur-update
+[INFO] Loading configuration from /etc/pac-up.conf
+[INFO] Setting CPU priority (nice level: 10)
+[INFO] Setting I/O priority (class: 2, level: 7)
+[INFO] Running pre hooks
+ ________________________________ 
+/ Exporting global variables...  \ 
+\________________________________/ 
+ ________________________________ 
+/ Optimizing mirror list...      \ 
+\________________________________/ 
+[INFO] Optimizing mirror list with reflector (countries: US, count: 10)...
+________________________________ 
+/ Checking Arch news...          \ 
+\________________________________/ 
 [INFO] Fetching latest Arch news...
- 1. Cleaning up old repositories
- 2. Glibc 2.41 corrupting Discord installation
- 3. Critical rsync security release 3.4.0
- 4. Providing a license for package sources
- 5. Manual intervention for pacman 7.0.0 and local repositories required
- ________________________________
-/ Updating system packages...    \
-\________________________________/
+ 1. Valkey to replace Redis in the [extra] Repository
+ 2. Cleaning up old repositories
+ 3. Glibc 2.41 corrupting Discord installation
+ 4. Critical rsync security release 3.4.0
+ 5. Providing a license for package sources
+ ________________________________ 
+/ Updating system packages...    \ 
+\________________________________/ 
 [INFO] Updating package database and system...
+:: Synchronizing package databases...
+ core                                     117.1 KiB   505 KiB/s 00:00 [#######################################] 100%
+ extra                                      7.8 MiB  13.8 MiB/s 00:01 [#######################################] 100%
 :: Starting full system upgrade...
  there is nothing to do
- ________________________________
-/ Cleaning package cache...      \
-\________________________________/
+ ________________________________ 
+/ Updating AUR packages...       \ 
+\________________________________/ 
+[WARNING] AUR updates are not supported in non-interactive mode, skipping...
+ ________________________________ 
+/ Cleaning package cache...      \ 
+\________________________________/ 
 [INFO] Keeping last 3 versions of cached packages...
 ==> no candidate packages found for pruning
- ________________________________
-/ Removing orphaned packages...  \
-\________________________________/
+ ________________________________ 
+/ Removing orphaned packages...  \ 
+\________________________________/ 
 [INFO] No orphaned packages found.
- ________________________________
-/ Cleaning old kernels...        \
-\________________________________/
+ ________________________________ 
+/ Cleaning old kernels...        \ 
+\________________________________/ 
 [INFO] No old kernels to remove.
- ________________________________
-/ Syncing buffers to disk...     \
-\________________________________/
-[INFO] Synced.
- ________________________________
-/           Finished.            \
+ ________________________________ 
+/ Syncing buffers to disk...     \ 
+\________________________________/ 
+[INFO] Running post hooks
+[INFO] Running hook: yt-dlp-update.sh
+Latest version: stable@2025.04.30 from yt-dlp/yt-dlp
+yt-dlp is up to date (stable@2025.04.30 from yt-dlp/yt-dlp)
+ ________________________________ 
+/           Finished.            \ 
 \________________________________/
 ```
 Normally output is color-coded, if the terminal supports it.
