@@ -446,7 +446,7 @@ done
 
 [ "$ENABLE_SYSTEM_UPDATE" = "true" ] && {
 	cecho " ________________________________ " boldblue
-	cecho "/ Updating system packages...    \ " boldness
+	cecho "/ Updating system packages...    \ " boldblue
 	cecho "\________________________________/ " boldblue
 	Update_System
 }
