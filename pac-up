@@ -292,10 +292,10 @@ Detect_Bin_Paths() {
 	PACMANBIN=$(which pacman) || Error_Handler
 	PACCACHEBIN=$(which paccache) || cecho "[INFO] paccache not found, cache cleanup will be basic" cyan
 	CURLBIN=$(which curl) || cecho "[INFO] curl not found, news check will be skipped" cyan
-	if command -v yay >/dev/null 2>&1; then
-		AURHELPERBIN=$(which yay)
-	elif command -v paru >/dev/null 2>&1; then
+	if command -v paru >/dev/null 2>&1; then
 		AURHELPERBIN=$(which paru)
+	elif command -v yay >/dev/null 2>&1; then
+		AURHELPERBIN=$(which yay)
 	fi
 }
 
