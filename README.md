@@ -83,84 +83,83 @@ sudo pac-up --no-interactive
 
 ### Options
 ```
- --no-interactive         Run without user interaction
- --no-system-update       Skip system package updates
- --no-cache-clean         Skip package cache cleanup
- --no-orphan-cleanup      Skip orphaned package removal
- --no-kernel-cleanup      Skip old kernel removal
- --no-news                Skip Arch news check
- --no-hooks               Skip running hook scripts
- --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
- --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
- --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
- --aur-update             Apply AUR updates via specified user account (requires yay/paru)
- --aur-user=USERNAME      Specify user for AUR updates (overrides config/detection)
- --install                Create config and hook directories
- --help                   Display this help message
+--no-interactive         Run without user interaction
+--no-system-update       Skip system package updates
+--no-cache-clean         Skip package cache cleanup
+--no-orphan-cleanup      Skip orphaned package removal
+--no-kernel-cleanup      Skip old kernel removal
+--no-news                Skip Arch news check
+--no-hooks               Skip running hook scripts
+--no-optimize-mirrors    Skip optimizing the mirror list
+--no-aur-update          Skip AUR updates
+--interactive            Run the script in interactive mode
+--aur-update             Apply AUR updates via specified user account (requires yay/paru)
+--aur-user=USERNAME      Specify user for AUR updates (overrides config/detection)
+--system-update          Update system packages
+--cache-clean            Perform package cache cleanup
+--orphan-cleanup         Cleanup orphaned packages
+--kernel-cleanup         Remove old kernels
+--news                   Check the Arch news RSS feed
+--hooks                  Run hook scripts
+--optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
+--mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
+--mirror-count=NUM       Set number of mirrors for reflector (default: 10)
+--install                Create config and hook directories
+--help                   Display this help message
 ```
 ### Configuration
 
 Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
 
 ## Example Run
-Here’s what it looks like in action, optimizing mirrors and cleaning up, then running a post-hook script too:
+Here’s what it looks like in action, including running a post-hook script:
 ```
-$ sudo pac-up --optimize-mirrors --mirror-count=10 --mirror-countries=US --no-interactive --aur-update
 [INFO] Loading configuration from /etc/pac-up.conf
-[INFO] Setting CPU priority (nice level: 10)
-[INFO] Setting I/O priority (class: 2, level: 7)
 [INFO] Running pre hooks
- ________________________________ 
-/ Exporting global variables...  \ 
-\________________________________/ 
- ________________________________ 
-/ Optimizing mirror list...      \ 
-\________________________________/ 
-[INFO] Optimizing mirror list with reflector (countries: US, count: 10)...
-________________________________ 
-/ Checking Arch news...          \ 
-\________________________________/ 
+ ________________________________
+/ Exporting global variables...  \
+\________________________________/
+ ________________________________
+/ Checking Arch news...          \
+\________________________________/
 [INFO] Fetching latest Arch news...
  1. Valkey to replace Redis in the [extra] Repository
  2. Cleaning up old repositories
  3. Glibc 2.41 corrupting Discord installation
  4. Critical rsync security release 3.4.0
  5. Providing a license for package sources
- ________________________________ 
-/ Updating system packages...    \ 
-\________________________________/ 
+ ________________________________
+/ Updating system packages...    \
+\________________________________/
 [INFO] Updating package database and system...
 :: Synchronizing package databases...
- core                                     117.1 KiB   505 KiB/s 00:00 [#######################################] 100%
- extra                                      7.8 MiB  13.8 MiB/s 00:01 [#######################################] 100%
+ core is up to date
+ extra
 :: Starting full system upgrade...
  there is nothing to do
- ________________________________ 
-/ Updating AUR packages...       \ 
-\________________________________/ 
-[WARNING] AUR updates are not supported in non-interactive mode, skipping...
- ________________________________ 
-/ Cleaning package cache...      \ 
-\________________________________/ 
+ ________________________________
+/ Cleaning package cache...      \
+\________________________________/
 [INFO] Keeping last 3 versions of cached packages...
-==> no candidate packages found for pruning
- ________________________________ 
-/ Removing orphaned packages...  \ 
-\________________________________/ 
+
+==> finished: 6 packages removed (disk space saved: 97.18 MiB)
+ ________________________________
+/ Removing orphaned packages...  \
+\________________________________/
 [INFO] No orphaned packages found.
- ________________________________ 
-/ Cleaning old kernels...        \ 
-\________________________________/ 
+ ________________________________
+/ Cleaning old kernels...        \
+\________________________________/
 [INFO] No old kernels to remove.
- ________________________________ 
-/ Syncing buffers to disk...     \ 
-\________________________________/ 
+ ________________________________
+/ Syncing buffers to disk...     \
+\________________________________/
 [INFO] Running post hooks
 [INFO] Running hook: yt-dlp-update.sh
-Latest version: stable@2025.04.30 from yt-dlp/yt-dlp
-yt-dlp is up to date (stable@2025.04.30 from yt-dlp/yt-dlp)
- ________________________________ 
-/           Finished.            \ 
+Latest version: stable@2025.05.22 from yt-dlp/yt-dlp
+yt-dlp is up to date (stable@2025.05.22 from yt-dlp/yt-dlp)
+ ________________________________
+/           Finished.            \
 \________________________________/
 ```
 Normally output is color-coded, if the terminal supports it.
@@ -174,7 +173,7 @@ If you want to extend pac-up’s functionality, you can add custom scripts to:
 
 - `/etc/pac-up.d/fail.d/` (on failure).
 
-Scripts with `critical` in the name (e.g., `00-critical-check.sh`) halt execution if they fail.
+NOTE: Scripts with `critical` in the name (e.g., `00-critical-check.sh`) halt execution if they fail.
 
 Run `sudo pac-up --install` to create these directories (with a sample hook in `pre.d`).
 
