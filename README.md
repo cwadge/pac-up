@@ -34,19 +34,19 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
 
   - `reflector` or `pacman-mirrors` (for mirror optimization).
 
-  - `paccache` (for advanced cache cleaning).
+  - `paccache` (for advanced cache cleaning - included in `pacman-contrib` package).
 
-  - `yay` or `paru` (for AUR updates).
+  - `paru` or `yay` (for AUR updates).
 
   - `curl` (for news checks).
 
-  - `ionice` (for I/O priority in non-interactive mode).
+  - `ionice` (for lower I/O priority in non-interactive mode).
 
 ## Installation
 Download:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/cwadge/pac-up/main/pac-up -o pac-up
+wget https://raw.githubusercontent.com/cwadge/pac-up/main/pac-up -O pac-up
 ```
 Or clone the repo:
 
