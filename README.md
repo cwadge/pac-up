@@ -116,7 +116,7 @@ Here’s what it looks like in action, including running a post-hook script:
 ```
 [INFO] Loading configuration from /etc/pac-up.conf
  ________________________________ 
-/ Running pre-update hooks...    \ 
+/ Running pre-update scripts...  \ 
 \________________________________/ 
 [INFO] Running pre hooks
  ________________________________ 
@@ -159,7 +159,7 @@ Here’s what it looks like in action, including running a post-hook script:
 \________________________________/ 
 [INFO] Disk sync completed successfully.
  ________________________________ 
-/ Running post-update hooks...   \ 
+/ Running post-update scripts... \ 
 \________________________________/ 
 [INFO] Running post hooks
 [INFO] Running hook: yt-dlp-update.sh
