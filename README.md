@@ -115,52 +115,60 @@ Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
 Here’s what it looks like in action, including running a post-hook script:
 ```
 [INFO] Loading configuration from /etc/pac-up.conf
+ ________________________________ 
+/ Running pre-update hooks...    \ 
+\________________________________/ 
 [INFO] Running pre hooks
- ________________________________
-/ Exporting global variables...  \
-\________________________________/
- ________________________________
-/ Checking Arch news...          \
-\________________________________/
+ ________________________________ 
+/ Exporting global variables...  \ 
+\________________________________/ 
+ ________________________________ 
+/ Checking Arch news...          \ 
+\________________________________/ 
 [INFO] Fetching latest Arch news...
- 1. Valkey to replace Redis in the [extra] Repository
- 2. Cleaning up old repositories
- 3. Glibc 2.41 corrupting Discord installation
- 4. Critical rsync security release 3.4.0
- 5. Providing a license for package sources
- ________________________________
-/ Updating system packages...    \
-\________________________________/
+ 1. linux-firmware >= 20250613.12fe085f-5 upgrade requires manual intervention
+ 2. Plasma 6.4.0 will need manual intervention if you are on X11
+ 3. Transition to the new WoW64 wine and wine-staging
+ 4. Valkey to replace Redis in the [extra] Repository
+ 5. Cleaning up old repositories
+ ________________________________ 
+/ Updating system packages...    \ 
+\________________________________/ 
 [INFO] Updating package database and system...
 :: Synchronizing package databases...
  core is up to date
- extra
+ extra is up to date
+ multilib is up to date
 :: Starting full system upgrade...
  there is nothing to do
- ________________________________
-/ Cleaning package cache...      \
-\________________________________/
+ ________________________________ 
+/ Cleaning package cache...      \ 
+\________________________________/ 
 [INFO] Keeping last 3 versions of cached packages...
-
-==> finished: 6 packages removed (disk space saved: 97.18 MiB)
- ________________________________
-/ Removing orphaned packages...  \
-\________________________________/
+==> no candidate packages found for pruning
+ ________________________________ 
+/ Removing orphaned packages...  \ 
+\________________________________/ 
 [INFO] No orphaned packages found.
- ________________________________
-/ Cleaning old kernels...        \
-\________________________________/
+ ________________________________ 
+/ Cleaning old kernels...        \ 
+\________________________________/ 
 [INFO] No old kernels to remove.
- ________________________________
-/ Syncing buffers to disk...     \
-\________________________________/
+ ________________________________ 
+/ Syncing buffers to disk...     \ 
+\________________________________/ 
+[INFO] Disk sync completed successfully.
+ ________________________________ 
+/ Running post-update hooks...   \ 
+\________________________________/ 
 [INFO] Running post hooks
 [INFO] Running hook: yt-dlp-update.sh
-Latest version: stable@2025.05.22 from yt-dlp/yt-dlp
-yt-dlp is up to date (stable@2025.05.22 from yt-dlp/yt-dlp)
- ________________________________
-/           Finished.            \
-\________________________________/
+Latest version: stable@2025.06.30 from yt-dlp/yt-dlp
+yt-dlp is up to date (stable@2025.06.30 from yt-dlp/yt-dlp)
+ ________________________________ 
+/           Finished.            \ 
+\________________________________/ 
+
 ```
 Normally output is color-coded, if the terminal supports it.
 

@@ -352,8 +352,23 @@ Check_Arch_News() {
 			grep -o "<title>[^<]*</title>" |
 			grep -v "Arch Linux: Recent news updates" |
 			sed 's/<title>\(.*\)<\/title>/\1/' |
-			head -n 5 |
-			nl -w2 -s ". " || Warn_Handler
+			sed '
+					s/&gt;/>/g
+					s/&lt;/</g
+					s/&amp;/\&/g
+					s/&quot;/"/g
+					s/&#39;/'"'"'/g
+					s/&apos;/'"'"'/g
+					s/&nbsp;/ /g
+					s/&copy;/©/g
+					s/&reg;/®/g
+					s/&trade;/™/g
+					s/&mdash;/—/g
+					s/&ndash;/–/g
+					s/&hellip;/…/g
+					' |
+						head -n 5 |
+						nl -w2 -s ". " || Warn_Handler
 	fi
 }
 
@@ -438,7 +453,12 @@ Apply_Resource_Limits
 PAC_OPTS=""
 [ "$INTERACTIVE" = "false" ] && PAC_OPTS="-y"
 
-Run_Hooks "pre"
+[ "$ENABLE_HOOKS" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Running pre-update hooks...    \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Run_Hooks "pre"
+}
 
 cecho " ________________________________ " boldblue
 cecho "/ Exporting global variables...  \ " boldblue
@@ -500,9 +520,18 @@ done
 cecho " ________________________________ " boldblue
 cecho "/ Syncing buffers to disk...     \ " boldblue
 cecho "\________________________________/ " boldblue
-timeout 60s sync || Warn_Handler
+if timeout 60s sync; then
+	cecho "[INFO] Disk sync completed successfully." cyan
+else
+	Warn_Handler
+fi
 
-Run_Hooks "post"
+[ "$ENABLE_HOOKS" = "true" ] && {
+	cecho " ________________________________ " boldblue
+	cecho "/ Running post-update hooks...   \ " boldblue
+	cecho "\________________________________/ " boldblue
+	Run_Hooks "post"
+}
 
 [ "$ENABLE_LOGGING" = "true" ] && echo "==== pac-up run completed at $(date) ====" >> "$LOG_FILE"
 
