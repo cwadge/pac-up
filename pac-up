@@ -409,15 +409,16 @@ Optimize_Mirrors() {
 								cecho "[DRY-RUN]   Countries: $MIRROR_COUNTRIES" cyan
 								cecho "[DRY-RUN]   Method: fasttrack" cyan
 							else
-								cecho "[DRY-RUN] Would optimize mirror list with pacman-mirrors (geoip)" cyan
+								cecho "[DRY-RUN] Would optimize mirror list with pacman-mirrors (auto-detect location)" cyan
+								cecho "[DRY-RUN]   Method: fasttrack" cyan
 							fi
 						else
 							if [ -n "$MIRROR_COUNTRIES" ]; then
 								cecho "[INFO] Optimizing mirror list with pacman-mirrors (countries: $MIRROR_COUNTRIES)..." cyan
 								$PACMANMIRRORSBIN --country "$MIRROR_COUNTRIES" --fasttrack || Warn_Handler
 							else
-								cecho "[INFO] Optimizing mirror list with pacman-mirrors (using geoip)..." cyan
-								$PACMANMIRRORSBIN --geoip --fasttrack || Warn_Handler
+								cecho "[INFO] Optimizing mirror list with pacman-mirrors (auto-detecting location)..." cyan
+								$PACMANMIRRORSBIN --fasttrack || Warn_Handler
 							fi
 							cecho "[INFO] Syncing after pacman-mirrors..." cyan
 							$PACMANBIN -Syy || Warn_Handler

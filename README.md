@@ -3,7 +3,7 @@
 A comprehensive update script for Arch Linux and derivatives, designed to streamline system maintenance. It can be run as an interactive one-shot or install itself with a config file, hook directories, and more. **pac-up** handles mirror optimization, system package upgrades, AUR updates, old kernel and orphaned package cleanup, cache management, and Arch news checks. Built with flexibility and extensibility in mind, it supports colored output, interactive and non-interactive modes, custom pre/post/failure hooks, and optional logging.
 
 ## Features
-- **Mirror Optimization:** Uses reflector or pacman-mirrors with GeoIP default or custom countries.
+- **Mirror Optimization:** Uses reflector or pacman-mirrors with automatic location detection or custom countries.
 
 - **System Updates:** Runs pacman -Syu for core packages.
 
