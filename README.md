@@ -7,6 +7,8 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
 
 - **System Updates:** Runs pacman -Syu for core packages.
 
+- **Dry-Run Mode:** Preview all changes without modifying the system.
+
 - **AUR Support:** Can do AUR updates via yay or paru if installed.
 
 - **Kernel Cleanup:** Removes outdated kernels, keeping the current and previous versions.
@@ -104,6 +106,7 @@ sudo pac-up --no-interactive
 --optimize-mirrors       Optimize mirror list (reflector or pacman-mirrors)
 --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
 --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
+--dry-run                Show what would be done without making changes
 --install                Create config and hook directories
 --help                   Display this help message
 ```
@@ -111,29 +114,103 @@ sudo pac-up --no-interactive
 
 Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
 
+## Dry-Run Mode
+
+Preview all changes before committing to them with `--dry-run`. This mode shows what would happen without modifying your system.
+
+**Important:** Dry-run mode **does** download package lists (via `pacman -Sy`) to show accurate information about available updates. This is necessary to provide meaningful previews. However, no packages are installed, removed, or upgraded.
+
+### What Gets Checked
+
+- **Mirror Optimization:** Shows which mirror tool would be used and with what settings
+- **Arch News:** Normal display (read-only operation)
+- **System Updates:** Downloads package lists, then shows what would be upgraded (using `pacman -Sup`)
+- **AUR Updates:** Shows available AUR updates (using `yay -Qua` or `paru -Qua`)
+- **Cache Cleaning:** Shows current cache size and what would be cleaned
+- **Orphan Cleanup:** Lists orphaned packages that would be removed
+- **Kernel Cleanup:** Lists old kernels that would be removed
+- **Hooks:** Lists which hooks would run without executing them
+
+### Usage
+
+Basic dry-run:
+```bash
+sudo pac-up --dry-run
+```
+
+Dry-run for specific operations:
+```bash
+# Preview system update only
+sudo pac-up --dry-run --no-kernel-cleanup --no-orphan-cleanup
+
+# Check what kernels would be cleaned
+sudo pac-up --dry-run --no-system-update --no-cache-clean
+```
+
+### Hook Scripts
+
+When dry-run mode is active, hook scripts are **not executed**. Instead, pac-up displays which hooks would be run:
+
+```bash
+[INFO] Running pre hooks
+[DRY-RUN] Would run hook: 00-example
+[DRY-RUN] Would run hook: 50-custom-backup
+```
+
+### Example Output
+
+```bash
+$ sudo pac-up --dry-run
+
+╔════════════════════════════════════════════════════════════════╗
+║                         DRY-RUN MODE                           ║
+║            No changes will be made to the system               ║
+╚════════════════════════════════════════════════════════════════╝
+
+[INFO] Running pre hooks
+[DRY-RUN] Would run hook: 00-example
+
+[DRY-RUN] Downloading latest package lists...
+[DRY-RUN] Checking for available updates...
+[DRY-RUN] Packages that would be upgraded (5 total):
+https://mirror.example.com/archlinux/core/os/x86_64/linux-6.7.2-1-x86_64.pkg.tar.zst
+https://mirror.example.com/archlinux/extra/os/x86_64/firefox-122.0-1-x86_64.pkg.tar.zst
+...
+
+[DRY-RUN] Current package cache size: 2.3G
+[DRY-RUN] Would keep last 3 versions of cached packages (paccache -r)
+
+[DRY-RUN] No orphaned packages found
+
+[DRY-RUN] No old kernels to remove
+
+[INFO] Running post hooks
+[DRY-RUN] Would run hook: yt-dlp-update.sh
+```
+
 ## Example Run
-Here’s what it looks like in action, including running a post-hook script:
+Here's what it looks like in action, including running a post-hook script:
 ```
 [INFO] Loading configuration from /etc/pac-up.conf
- ________________________________ 
-/ Running pre-update scripts...  \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                 Running pre-update scripts...                  ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Running pre hooks
- ________________________________ 
-/ Exporting global variables...  \ 
-\________________________________/ 
- ________________________________ 
-/ Checking Arch news...          \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                 Exporting global variables...                  ║
+╚════════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════╗
+║                      Checking Arch news...                     ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Fetching latest Arch news...
  1. linux-firmware >= 20250613.12fe085f-5 upgrade requires manual intervention
  2. Plasma 6.4.0 will need manual intervention if you are on X11
  3. Transition to the new WoW64 wine and wine-staging
  4. Valkey to replace Redis in the [extra] Repository
  5. Cleaning up old repositories
- ________________________________ 
-/ Updating system packages...    \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                   Updating system packages...                  ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Updating package database and system...
 :: Synchronizing package databases...
  core is up to date
@@ -141,36 +218,35 @@ Here’s what it looks like in action, including running a post-hook script:
  multilib is up to date
 :: Starting full system upgrade...
  there is nothing to do
- ________________________________ 
-/ Cleaning package cache...      \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                    Cleaning package cache...                   ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Keeping last 3 versions of cached packages...
 ==> no candidate packages found for pruning
- ________________________________ 
-/ Removing orphaned packages...  \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                  Removing orphaned packages...                 ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] No orphaned packages found.
- ________________________________ 
-/ Cleaning old kernels...        \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                     Cleaning old kernels...                    ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] No old kernels to remove.
- ________________________________ 
-/ Syncing buffers to disk...     \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                   Syncing buffers to disk...                   ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Disk sync completed successfully.
- ________________________________ 
-/ Running post-update scripts... \ 
-\________________________________/ 
+╔════════════════════════════════════════════════════════════════╗
+║                 Running post-update scripts...                 ║
+╚════════════════════════════════════════════════════════════════╝
 [INFO] Running post hooks
 [INFO] Running hook: yt-dlp-update.sh
 Latest version: stable@2025.06.30 from yt-dlp/yt-dlp
 yt-dlp is up to date (stable@2025.06.30 from yt-dlp/yt-dlp)
- ________________________________ 
-/           Finished.            \ 
-\________________________________/ 
-
+╔════════════════════════════════════════════════════════════════╗
+║                           Finished.                            ║
+╚════════════════════════════════════════════════════════════════╝
 ```
-Normally output is color-coded, if the terminal supports it.
+(Normally output is color-coded, if the terminal supports it.)
 
 ## Hooks
 
