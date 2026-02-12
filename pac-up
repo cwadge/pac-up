@@ -365,7 +365,7 @@ Sanity_Check() {
 		Error_Handler
 	fi
 	if [ "$ENABLE_NEWS_CHECK" = "true" ] && [ ! -f "$CURLBIN" ]; then
-		cecho "[WARNING] curl not found, disabling news check" boldyellow
+		cecho "[INFO] curl not found, disabling news check" cyan
 		ENABLE_NEWS_CHECK=false
 	fi
 }
