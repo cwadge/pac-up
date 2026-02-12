@@ -3,7 +3,7 @@
 A comprehensive update script for Arch Linux and derivatives, designed to streamline system maintenance. It can be run as an interactive one-shot or install itself with a config file, hook directories, and more. **pac-up** handles mirror optimization, system package upgrades, AUR updates, old kernel and orphaned package cleanup, cache management, and Arch news checks. Built with flexibility and extensibility in mind, it supports colored output, interactive and non-interactive modes, custom pre/post/failure hooks, and optional logging.
 
 ## Features
-- **Mirror Optimization:** Uses reflector or pacman-mirrors with automatic location detection or custom countries.
+- **Mirror Optimization:** Uses reflector or pacman-mirrors with GeoIP default or custom countries.
 
 - **System Updates:** Runs pacman -Syu for core packages.
 
@@ -107,6 +107,8 @@ sudo pac-up --no-interactive
 --mirror-countries=LIST  Set countries for mirrors (e.g., "US,DE" for reflector, "United_States,Germany" for pacman-mirrors)
 --mirror-count=NUM       Set number of mirrors for reflector (default: 10)
 --dry-run                Show what would be done without making changes
+--dry-run-hooks          Run hook scripts during --dry-run, passing IS_DRY_RUN=true (default)
+--no-dry-run-hooks       List hooks during --dry-run without executing them
 --install                Create config and hook directories
 --help                   Display this help message
 ```
@@ -129,7 +131,7 @@ Preview all changes before committing to them with `--dry-run`. This mode shows 
 - **Cache Cleaning:** Shows current cache size and what would be cleaned
 - **Orphan Cleanup:** Lists orphaned packages that would be removed
 - **Kernel Cleanup:** Lists old kernels that would be removed
-- **Hooks:** Lists which hooks would run without executing them
+- **Hooks:** Executed with `IS_DRY_RUN=true` exported so they can skip side effects; use `--no-dry-run-hooks` to list only
 
 ### Usage
 
@@ -149,9 +151,34 @@ sudo pac-up --dry-run --no-system-update --no-cache-clean
 
 ### Hook Scripts
 
-When dry-run mode is active, hook scripts are **not executed**. Instead, pac-up displays which hooks would be run:
+By default, hook scripts **are executed** during dry-run mode. Before any hooks run, pac-up exports `IS_DRY_RUN=true` into the environment so that hook scripts can detect dry-run mode and skip their own side effects:
 
 ```bash
+#!/bin/bash
+# Example hook with IS_DRY_RUN awareness
+
+if [ "${IS_DRY_RUN:-false}" = "true" ]; then
+    echo "[DRY-RUN] Would perform custom action"
+    exit 0
+fi
+
+# Normal execution
+echo "Performing custom action..."
+```
+
+If a hook runs during dry-run but contains no reference to `IS_DRY_RUN`, pac-up prints a warning to flag that it may not be dry-run-aware:
+
+```
+[WARNING] Hook '50-legacy-hook' does not check IS_DRY_RUN and may make unintended changes
+```
+
+To skip hook execution entirely during dry-run (listing hooks instead), use `--no-dry-run-hooks` on the command line or set `DRY_RUN_HOOKS=false` in `/etc/pac-up.conf`:
+
+```bash
+sudo pac-up --dry-run --no-dry-run-hooks
+```
+
+```
 [INFO] Running pre hooks
 [DRY-RUN] Would run hook: 00-example
 [DRY-RUN] Would run hook: 50-custom-backup
@@ -168,7 +195,8 @@ $ sudo pac-up --dry-run
 ╚════════════════════════════════════════════════════════════════╝
 
 [INFO] Running pre hooks
-[DRY-RUN] Would run hook: 00-example
+[INFO] Running hook: 00-example
+[DRY-RUN] Would perform custom action
 
 [DRY-RUN] Downloading latest package lists...
 [DRY-RUN] Checking for available updates...
@@ -185,7 +213,8 @@ https://mirror.example.com/archlinux/extra/os/x86_64/firefox-122.0-1-x86_64.pkg.
 [DRY-RUN] No old kernels to remove
 
 [INFO] Running post hooks
-[DRY-RUN] Would run hook: yt-dlp-update.sh
+[INFO] Running hook: yt-dlp-update.sh
+[DRY-RUN] Would update yt-dlp to 2024.03.10
 ```
 
 ## Example Run
@@ -196,9 +225,6 @@ Here's what it looks like in action, including running a post-hook script:
 ║                 Running pre-update scripts...                  ║
 ╚════════════════════════════════════════════════════════════════╝
 [INFO] Running pre hooks
-╔════════════════════════════════════════════════════════════════╗
-║                 Exporting global variables...                  ║
-╚════════════════════════════════════════════════════════════════╝
 ╔════════════════════════════════════════════════════════════════╗
 ║                      Checking Arch news...                     ║
 ╚════════════════════════════════════════════════════════════════╝
