@@ -348,13 +348,14 @@ Initialize_Logging() {
 
 Detect_Bin_Paths() {
 	CURRENT_STEP="detecting binary paths"
-	PACMANBIN=$(which pacman) || Error_Handler
-	PACCACHEBIN=$(which paccache) || cecho "[INFO] paccache not found, cache cleanup will be basic" cyan
-	CURLBIN=$(which curl) || cecho "[INFO] curl not found, news check will be skipped" cyan
+	# Detect all binaries silently; Sanity_Check determines consequences of absence
+	PACMANBIN="$(command -v pacman)"
+	PACCACHEBIN="$(command -v paccache)"
+	CURLBIN="$(command -v curl)"
 	if command -v paru >/dev/null 2>&1; then
-		AURHELPERBIN=$(which paru)
+		AURHELPERBIN="$(command -v paru)"
 	elif command -v yay >/dev/null 2>&1; then
-		AURHELPERBIN=$(which yay)
+		AURHELPERBIN="$(command -v yay)"
 	fi
 }
 
