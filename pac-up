@@ -29,6 +29,8 @@ REFLECTOR_COUNT=10
 HOOKS_DIR="/etc/pac-up.d"
 # AUR_USER: User to run yay/paru as for AUR updates (leave unset for auto-detection)
 AUR_USER=""
+# Logging
+LOG_FILE="/var/log/pac-up.log"
 # Binaries (auto-detected if blank)
 PACMANBIN=""
 PACCACHEBIN=""
@@ -360,9 +362,10 @@ Initialize_Logging() {
 Detect_Bin_Paths() {
 	CURRENT_STEP="detecting binary paths"
 	# Detect all binaries silently; Sanity_Check determines consequences of absence
-	PACMANBIN="$(command -v pacman)"
-	PACCACHEBIN="$(command -v paccache)"
-	CURLBIN="$(command -v curl)"
+	# '|| true' prevents the ERR trap from firing when a binary isn't installed
+	PACMANBIN="$(command -v pacman    2>/dev/null || true)"
+	PACCACHEBIN="$(command -v paccache 2>/dev/null || true)"
+	CURLBIN="$(command -v curl       2>/dev/null || true)"
 	if command -v paru >/dev/null 2>&1; then
 		AURHELPERBIN="$(command -v paru)"
 	elif command -v yay >/dev/null 2>&1; then
