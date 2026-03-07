@@ -514,10 +514,12 @@ Update_AUR() {
 			return
 		fi
 
+		local aur_helper_name
+		aur_helper_name=$(basename "$AURHELPERBIN")
 		if [ "$DRY_RUN" = "true" ]; then
 			cecho "[DRY-RUN] Checking for AUR updates as $aur_user..." cyan
 			# Both yay and paru support checking for updates
-			AUR_UPDATES=$(sudo -u "$aur_user" $AURHELPERBIN -Qua 2>/dev/null || Bypass_Handler)
+			AUR_UPDATES=$(runuser -u "$aur_user" -- $AURHELPERBIN -Qua 2>/dev/null || Bypass_Handler)
 			if [ -n "$AUR_UPDATES" ]; then
 				UPDATE_COUNT=$(echo "$AUR_UPDATES" | wc -l)
 				cecho "[DRY-RUN] AUR packages that would be upgraded ($UPDATE_COUNT total):" cyan
@@ -529,8 +531,14 @@ Update_AUR() {
 				cecho "[DRY-RUN] No AUR updates available" cyan
 			fi
 		else
-			cecho "[INFO] Using $AURHELPERBIN as $aur_user..." cyan
-			sudo -u "$aur_user" $AURHELPERBIN -Syu || Warn_Handler
+			cecho "[INFO] Using $aur_helper_name as $aur_user..." cyan
+			if ! runuser -u "$aur_user" -- $AURHELPERBIN -Syu; then
+				cecho "[WARNING] $aur_helper_name failed (exit code: $?)." boldyellow
+				cecho "[INFO] If $aur_helper_name itself is broken or needs rebuilding, recover manually:" cyan
+				cecho "       su -l $aur_user" cyan
+				cecho "       git clone https://aur.archlinux.org/${aur_helper_name}.git /tmp/${aur_helper_name}" cyan
+				cecho "       cd /tmp/${aur_helper_name} && makepkg -si" cyan
+			fi
 		fi
 	else
 		if [ "$DRY_RUN" = "true" ]; then
