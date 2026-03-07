@@ -296,6 +296,32 @@ Create_Hook_Dirs() {
 	mkdir -p "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	chmod 755 "${HOOKS_DIR}" "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	cecho "[INFO] Hook directories created at ${HOOKS_DIR}" cyan
+	# Create a sample hook
+	CURRENT_STEP="populating sample hook"
+	cat > "${HOOKS_DIR}/pre.d/00-example" << 'EOT' || Error_Handler
+#!/bin/bash
+# Example pre-update hook for pac-up
+#
+# Hook naming:
+#   Hooks run in lexical order. Prefix with NN- to control sequence.
+#   Hooks with 'critical' in the name (e.g. 00-critical-check) will
+#   abort the entire pac-up run if they exit non-zero.
+#
+# Dry-run awareness:
+#   pac-up exports IS_DRY_RUN=true when run with --dry-run.
+#   Check it here to skip side effects during dry runs.
+
+if [ "${IS_DRY_RUN:-false}" = "true" ]; then
+	echo "[DRY-RUN] 00-example: would perform pre-update actions"
+	exit 0
+fi
+
+# Your pre-update actions go here.
+exit 0
+EOT
+CURRENT_STEP="setting permissions on sample hook"
+chmod 755 "${HOOKS_DIR}/pre.d/00-example" || Error_Handler
+cecho "[INFO] Sample hook created at ${HOOKS_DIR}/pre.d/00-example" cyan
 }
 
 
