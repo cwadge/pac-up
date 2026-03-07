@@ -231,7 +231,7 @@ Parse_Arguments() {
 			--dry-run) DRY_RUN=true ;;
 			--dry-run-hooks) DRY_RUN_HOOKS=true ;;
 			--no-dry-run-hooks) DRY_RUN_HOOKS=false ;;
-			--install) Create_Config; Create_Hook_Dirs; exit 0 ;;
+			--install) Create_Config; Create_Hook_Dirs; Create_Sudoers; exit 0 ;;
 			--help) Show_Help; exit 0 ;;
 			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
 		esac
@@ -296,6 +296,21 @@ Create_Hook_Dirs() {
 	mkdir -p "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	chmod 755 "${HOOKS_DIR}" "${HOOKS_DIR}/pre.d" "${HOOKS_DIR}/post.d" "${HOOKS_DIR}/fail.d" || Error_Handler
 	cecho "[INFO] Hook directories created at ${HOOKS_DIR}" cyan
+}
+
+Create_Sudoers() {
+	CURRENT_STEP="creating sudoers rule for AUR updates"
+	local aur_user="${AUR_USER:-$SUDO_USER}"
+	local sudoers_file="/etc/sudoers.d/pac-up-aur-nopasswd"
+	if [ -z "$aur_user" ]; then
+		cecho "[INFO] AUR_USER not set; skipping sudoers rule creation." cyan
+		cecho "[INFO] Re-run with --install after setting AUR_USER in /etc/pac-up.conf," cyan
+		cecho "[INFO] or pass --aur-user=USERNAME to create the rule for a specific user." cyan
+		return
+	fi
+	echo "$aur_user ALL=(root) NOPASSWD: /usr/bin/pacman" > "$sudoers_file"
+	chmod 440 "$sudoers_file"
+	cecho "[INFO] Sudoers rule created at $sudoers_file (user: $aur_user)" cyan
 }
 
 Apply_Resource_Limits() {
@@ -517,17 +532,6 @@ Update_AUR() {
 		local aur_helper_name
 		aur_helper_name=$(basename "$AURHELPERBIN")
 
-		# paru/yay call sudo internally to invoke pacman for installation. Since
-		# pac-up is already running as root, we provide a minimal wrapper that
-		# simply exec's its arguments directly. Both helpers honour the SUDO
-		# environment variable, so this eliminates the password prompt entirely.
-		local sudo_wrapper
-		sudo_wrapper=$(mktemp /tmp/pac-up-sudo-XXXXXX)
-		printf '#!/bin/sh\nexec "$@"\n' > "$sudo_wrapper"
-		chmod 755 "$sudo_wrapper"
-		# Ensure the wrapper is removed whether we return normally or not
-		trap 'rm -f "$sudo_wrapper"' RETURN
-
 		if [ "$DRY_RUN" = "true" ]; then
 			cecho "[DRY-RUN] Checking for AUR updates as $aur_user..." cyan
 			# Both yay and paru support checking for updates
@@ -544,7 +548,7 @@ Update_AUR() {
 			fi
 		else
 			cecho "[INFO] Using $aur_helper_name as $aur_user..." cyan
-			if ! runuser -u "$aur_user" -- env SUDO="$sudo_wrapper" $AURHELPERBIN -Syu; then
+			if ! runuser -u "$aur_user" -- $AURHELPERBIN -Syu; then
 				cecho "[WARNING] $aur_helper_name failed (exit code: $?)." boldyellow
 				cecho "[INFO] If $aur_helper_name itself is broken or needs rebuilding, recover manually:" cyan
 				cecho "       su -l $aur_user" cyan
