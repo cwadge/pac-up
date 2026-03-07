@@ -196,7 +196,7 @@ Options:
   --dry-run                Show what would be done without making changes
   --dry-run-hooks          Run hook scripts in dry-run mode (default; IS_DRY_RUN=true exported)
   --no-dry-run-hooks       List hooks in dry-run mode without executing them
-  --install                Create config and hook directories
+  --install                Create config, hook directories, and sudoers rule for AUR
   --help                   Display this help message
 
 See /etc/pac-up.conf for more configuration options.

@@ -109,12 +109,14 @@ sudo pac-up --no-interactive
 --dry-run                Show what would be done without making changes
 --dry-run-hooks          Run hook scripts during --dry-run, passing IS_DRY_RUN=true (default)
 --no-dry-run-hooks       List hooks during --dry-run without executing them
---install                Create config and hook directories
+--install                Create config, hook directories, and sudoers rule for AUR
 --help                   Display this help message
 ```
 ### Configuration
 
 Edit `/etc/pac-up.conf` (after optional `sudo pac-up --install`).
+
+If AUR updates are enabled, `--install` also creates `/etc/sudoers.d/pac-up-aur-nopasswd`, granting the configured AUR user passwordless pacman access so pac-up can run the AUR helper without sudo prompts.
 
 ## Dry-Run Mode
 
