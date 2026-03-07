@@ -196,7 +196,7 @@ Options:
   --dry-run                Show what would be done without making changes
   --dry-run-hooks          Run hook scripts in dry-run mode (default; IS_DRY_RUN=true exported)
   --no-dry-run-hooks       List hooks in dry-run mode without executing them
-  --install                Create config, hook directories, and sudoers rule for AUR
+  --install                Create config and hook directories
   --help                   Display this help message
 
 See /etc/pac-up.conf for more configuration options.
@@ -231,7 +231,7 @@ Parse_Arguments() {
 			--dry-run) DRY_RUN=true ;;
 			--dry-run-hooks) DRY_RUN_HOOKS=true ;;
 			--no-dry-run-hooks) DRY_RUN_HOOKS=false ;;
-			--install) Create_Config; Create_Hook_Dirs; Create_Sudoers; exit 0 ;;
+			--install) Create_Config; Create_Hook_Dirs; exit 0 ;;
 			--help) Show_Help; exit 0 ;;
 			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
 		esac
@@ -298,20 +298,6 @@ Create_Hook_Dirs() {
 	cecho "[INFO] Hook directories created at ${HOOKS_DIR}" cyan
 }
 
-Create_Sudoers() {
-	CURRENT_STEP="creating sudoers rule for AUR updates"
-	local aur_user="${AUR_USER:-$SUDO_USER}"
-	local sudoers_file="/etc/sudoers.d/pac-up-aur-nopasswd"
-	if [ -z "$aur_user" ]; then
-		cecho "[INFO] AUR_USER not set; skipping sudoers rule creation." cyan
-		cecho "[INFO] Re-run with --install after setting AUR_USER in /etc/pac-up.conf," cyan
-		cecho "[INFO] or pass --aur-user=USERNAME to create the rule for a specific user." cyan
-		return
-	fi
-	echo "$aur_user ALL=(root) NOPASSWD: /usr/bin/pacman" > "$sudoers_file"
-	chmod 440 "$sudoers_file"
-	cecho "[INFO] Sudoers rule created at $sudoers_file (user: $aur_user)" cyan
-}
 
 Apply_Resource_Limits() {
 	CURRENT_STEP="applying resource limits"
@@ -547,6 +533,15 @@ Update_AUR() {
 				cecho "[DRY-RUN] No AUR updates available" cyan
 			fi
 		else
+			# paru/yay run as the normal user but call 'sudo pacman' internally to
+			# install built packages. Write a temporary NOPASSWD sudoers drop-in
+			# scoped only to pacman, valid only for the duration of this function,
+			# then remove it immediately via a RETURN trap.
+			local sudoers_drop="/etc/sudoers.d/99-pac-up-aur-$$"
+			echo "$aur_user ALL=(root) NOPASSWD: /usr/bin/pacman" > "$sudoers_drop"
+			chmod 440 "$sudoers_drop"
+			trap 'rm -f "$sudoers_drop"' RETURN
+
 			cecho "[INFO] Using $aur_helper_name as $aur_user..." cyan
 			if ! runuser -u "$aur_user" -- $AURHELPERBIN -Syu; then
 				cecho "[WARNING] $aur_helper_name failed (exit code: $?)." boldyellow
