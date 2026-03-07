@@ -516,6 +516,18 @@ Update_AUR() {
 
 		local aur_helper_name
 		aur_helper_name=$(basename "$AURHELPERBIN")
+
+		# paru/yay call sudo internally to invoke pacman for installation. Since
+		# pac-up is already running as root, we provide a minimal wrapper that
+		# simply exec's its arguments directly. Both helpers honour the SUDO
+		# environment variable, so this eliminates the password prompt entirely.
+		local sudo_wrapper
+		sudo_wrapper=$(mktemp /tmp/pac-up-sudo-XXXXXX)
+		printf '#!/bin/sh\nexec "$@"\n' > "$sudo_wrapper"
+		chmod 755 "$sudo_wrapper"
+		# Ensure the wrapper is removed whether we return normally or not
+		trap 'rm -f "$sudo_wrapper"' RETURN
+
 		if [ "$DRY_RUN" = "true" ]; then
 			cecho "[DRY-RUN] Checking for AUR updates as $aur_user..." cyan
 			# Both yay and paru support checking for updates
@@ -532,7 +544,7 @@ Update_AUR() {
 			fi
 		else
 			cecho "[INFO] Using $aur_helper_name as $aur_user..." cyan
-			if ! runuser -u "$aur_user" -- $AURHELPERBIN -Syu; then
+			if ! runuser -u "$aur_user" -- env SUDO="$sudo_wrapper" $AURHELPERBIN -Syu; then
 				cecho "[WARNING] $aur_helper_name failed (exit code: $?)." boldyellow
 				cecho "[INFO] If $aur_helper_name itself is broken or needs rebuilding, recover manually:" cyan
 				cecho "       su -l $aur_user" cyan
