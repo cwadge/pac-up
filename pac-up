@@ -588,6 +588,29 @@ Update_AUR() {
 
 Clean_Cache() {
 	CURRENT_STEP="cleaning package cache"
+
+	# Clean up stale partial-download directories left by interrupted pacman downloads.
+	# pacman stages downloads in /var/cache/pacman/pkg/download-<random>/ and normally
+	# removes them on completion; interrupted runs leave them behind.
+	local stale_dirs
+	mapfile -t stale_dirs < <(find /var/cache/pacman/pkg -maxdepth 1 -mindepth 1 -type d -name "download-*" 2>/dev/null)
+	if [ "${#stale_dirs[@]}" -gt 0 ]; then
+		if [ "$DRY_RUN" = "true" ]; then
+			cecho "[DRY-RUN] Found ${#stale_dirs[@]} stale partial-download director$([ "${#stale_dirs[@]}" -eq 1 ] && echo "y" || echo "ies") that would be removed:" cyan
+			for d in "${stale_dirs[@]}"; do
+				cecho "[DRY-RUN]   - $(basename "$d")" cyan
+			done
+		else
+			cecho "[INFO] Removing ${#stale_dirs[@]} stale partial-download director$([ "${#stale_dirs[@]}" -eq 1 ] && echo "y" || echo "ies")..." cyan
+			for d in "${stale_dirs[@]}"; do
+				rm -rf "$d" || {
+					cecho "[WARNING] Failed to remove stale download directory: $d" boldyellow
+									Warn_Handler
+								}
+							done
+		fi
+	fi
+
 	if [ "$DRY_RUN" = "true" ]; then
 		# Calculate cache size
 		CACHE_SIZE=$(du -sh /var/cache/pacman/pkg 2>/dev/null | awk '{print $1}' || echo "unknown")
