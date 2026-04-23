@@ -503,7 +503,9 @@ Update_System() {
 		cecho "[DRY-RUN] Downloading latest package lists..." cyan
 		$PACMANBIN -Sy || Warn_Handler
 		cecho "[DRY-RUN] Checking for available updates..." cyan
-		UPDATES=$($PACMANBIN -Sup 2>/dev/null | grep -v "^::" || Bypass_Handler)
+		# -Qu lists upgradable packages as "name oldver -> newver"; more useful than
+		# -Sup which outputs raw mirror URLs with no old-version information.
+		UPDATES=$($PACMANBIN -Qu 2>/dev/null || Bypass_Handler)
 		if [ -n "$UPDATES" ]; then
 			UPDATE_COUNT=$(echo "$UPDATES" | wc -l)
 			cecho "[DRY-RUN] Packages that would be upgraded ($UPDATE_COUNT total):" cyan
