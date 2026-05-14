@@ -29,6 +29,8 @@ REFLECTOR_COUNT=10
 HOOKS_DIR="/etc/pac-up.d"
 # AUR_USER: User to run yay/paru as for AUR updates (leave unset for auto-detection)
 AUR_USER=""
+# REINSTALL_HELPER: Set by --install-yay / --reinstall-yay / etc. (not a config option)
+REINSTALL_HELPER=""
 # Logging
 LOG_FILE="/var/log/pac-up.log"
 # Binaries (auto-detected if blank)
@@ -197,6 +199,10 @@ Options:
   --dry-run-hooks          Run hook scripts in dry-run mode (default; IS_DRY_RUN=true exported)
   --no-dry-run-hooks       List hooks in dry-run mode without executing them
   --install                Create config and hook directories
+  --install-yay            Install or reinstall yay from the AUR (alias: --reinstall-yay)
+  --reinstall-yay          Install or reinstall yay from the AUR (alias: --install-yay)
+  --install-paru           Install or reinstall paru from the AUR (alias: --reinstall-paru)
+  --reinstall-paru         Install or reinstall paru from the AUR (alias: --install-paru)
   --help                   Display this help message
 
 See /etc/pac-up.conf for more configuration options.
@@ -232,6 +238,8 @@ Parse_Arguments() {
 			--dry-run-hooks) DRY_RUN_HOOKS=true ;;
 			--no-dry-run-hooks) DRY_RUN_HOOKS=false ;;
 			--install) Create_Config; Create_Hook_Dirs; exit 0 ;;
+			--install-yay|--reinstall-yay) REINSTALL_HELPER="${REINSTALL_HELPER:+$REINSTALL_HELPER }yay" ;;
+			--install-paru|--reinstall-paru) REINSTALL_HELPER="${REINSTALL_HELPER:+$REINSTALL_HELPER }paru" ;;
 			--help) Show_Help; exit 0 ;;
 			*) cecho "[FATAL] Unknown argument: $1" red ; Show_Help; exit 1 ;;
 		esac
@@ -633,6 +641,98 @@ Clean_Cache() {
 	fi
 }
 
+Clean_AUR_Cache() {
+	CURRENT_STEP="cleaning AUR helper cache"
+
+	# Determine which user owns the AUR cache directories.
+	# Mirrors the same resolution logic used by Update_AUR().
+	local aur_user="${AUR_USER:-$SUDO_USER}"
+	if [ -z "$aur_user" ]; then
+		cecho "[INFO] Cannot determine AUR user for cache cleanup, skipping." cyan
+		return 0
+	fi
+	if ! id "$aur_user" >/dev/null 2>&1; then
+		cecho "[WARNING] AUR user '$aur_user' does not exist, skipping AUR cache clean." boldyellow
+		return 0
+	fi
+
+	local user_home
+	user_home=$(getent passwd "$aur_user" | cut -d: -f6)
+	if [ -z "$user_home" ]; then
+		cecho "[WARNING] Could not determine home directory for '$aur_user', skipping AUR cache clean." boldyellow
+		return 0
+	fi
+
+	# Track whether we found anything to report on
+	local found_any=false
+
+	# yay honours --noconfirm for -Sc and is driven via its own command.
+	# paru reads its -Sc confirmation prompts from /dev/tty, bypassing stdin,
+	# so it cannot be driven non-interactively; its cache dirs are removed directly.
+	local helper helper_bin cache_dir cache_size
+	for helper in yay paru; do
+		cache_dir="${user_home}/.cache/${helper}"
+
+		# Silently skip if neither the binary nor the cache directory exists
+		[ -d "$cache_dir" ] || continue
+
+		found_any=true
+		cache_size=$(du -sh "$cache_dir" 2>/dev/null | awk '{print $1}' || echo "unknown")
+		helper_bin=$(command -v "$helper" 2>/dev/null || true)
+
+		if [ -n "$helper_bin" ] && [ "$helper" = "yay" ]; then
+			# yay: let it clean its own cache via -Sc --aur, which restricts
+			# scope to ~/.cache/yay/ and avoids re-cleaning the pacman cache
+			# that paccache already handled. --noconfirm is honoured here.
+			if [ "$DRY_RUN" = "true" ]; then
+				cecho "[DRY-RUN] Found yay cache: $cache_dir ($cache_size)" cyan
+				cecho "[DRY-RUN] Would run: runuser -u $aur_user -- $helper_bin -Sc --aur --noconfirm" cyan
+			else
+				cecho "[INFO] Cleaning yay cache ($cache_size) as $aur_user..." cyan
+				runuser -u "$aur_user" -- "$helper_bin" -Sc --aur --noconfirm || Warn_Handler
+			fi
+		elif [ "$helper" = "paru" ]; then
+			# paru: remove known cache subdirectories directly regardless of
+			# whether the binary is present. 'clone' holds AUR build trees;
+			# 'diff' holds saved PKGBUILD diffs. Both are safe to wipe.
+			local paru_label
+			[ -n "$helper_bin" ] && paru_label="paru" || paru_label="paru (orphaned)"
+			if [ "$DRY_RUN" = "true" ]; then
+				cecho "[DRY-RUN] Found ${paru_label} cache: $cache_dir ($cache_size)" cyan
+				for subdir in clone diff; do
+					[ -d "${cache_dir}/${subdir}" ] && \
+						cecho "[DRY-RUN] Would remove contents of: ${cache_dir}/${subdir}" cyan
+					done
+				else
+					cecho "[INFO] Cleaning ${paru_label} cache ($cache_size)..." cyan
+					for subdir in clone diff; do
+						local target="${cache_dir}/${subdir}"
+						if [ -d "$target" ]; then
+							runuser -u "$aur_user" -- find "$target" -mindepth 1 -delete || Warn_Handler
+						fi
+					done
+			fi
+		else
+			# Some other helper binary is absent and left an orphaned cache
+			if [ "$DRY_RUN" = "true" ]; then
+				cecho "[DRY-RUN] Found orphaned ${helper} cache (binary absent): $cache_dir ($cache_size)" cyan
+				cecho "[DRY-RUN] Would remove: $cache_dir" cyan
+			else
+				cecho "[INFO] ${helper} not installed; removing orphaned cache ($cache_size): $cache_dir..." cyan
+				rm -rf "$cache_dir" || Warn_Handler
+			fi
+		fi
+	done
+
+	if [ "$found_any" = "false" ]; then
+		if [ "$DRY_RUN" = "true" ]; then
+			cecho "[DRY-RUN] No yay or paru cache directories found" cyan
+		else
+			cecho "[INFO] No yay or paru cache directories found." cyan
+		fi
+	fi
+}
+
 Clean_Orphans() {
 	CURRENT_STEP="removing orphaned packages"
 	ORPHANS=$($PACMANBIN -Qtdq 2>/dev/null || Bypass_Handler)
@@ -685,6 +785,88 @@ Kernel_Cleanup() {
 	fi
 }
 
+Reinstall_AUR_Helper() {
+	CURRENT_STEP="reinstalling AUR helper"
+	local helper="$1"
+
+	# Resolve the non-root user who will run makepkg
+	local aur_user="${AUR_USER:-$SUDO_USER}"
+	if [ -z "$aur_user" ]; then
+		cecho "[ERROR] Cannot determine AUR user. Set AUR_USER in /etc/pac-up.conf or invoke via sudo." red
+		Error_Handler
+	fi
+	if ! id "$aur_user" >/dev/null 2>&1; then
+		cecho "[ERROR] User '$aur_user' does not exist." red
+		Error_Handler
+	fi
+
+	local user_home
+	user_home=$(getent passwd "$aur_user" | cut -d: -f6)
+	if [ -z "$user_home" ]; then
+		cecho "[ERROR] Could not determine home directory for '$aur_user'." red
+		Error_Handler
+	fi
+
+	# Verify git is available (required to clone the AUR repo)
+	if ! command -v git >/dev/null 2>&1; then
+		cecho "[ERROR] git is not installed. Install it with: pacman -S git" red
+		Error_Handler
+	fi
+
+	# Warn if the build toolchain is missing. It will be pulled in automatically
+	# by makepkg -s, but it can be a large unexpected download if absent.
+	# yay is written in Go; paru is written in Rust.
+	local build_dep
+	[ "$helper" = "yay" ] && build_dep="go" || build_dep="rust"
+	if ! $PACMANBIN -Qq "$build_dep" >/dev/null 2>&1; then
+		cecho "[WARNING] Build dependency '$build_dep' is not currently installed." boldyellow
+		cecho "[INFO] makepkg will pull it in automatically via --syncdeps, but" cyan
+		cecho "[INFO] this may download several hundred MB of additional packages." cyan
+		if [ "$INTERACTIVE" = "true" ] && [ "$DRY_RUN" = "false" ]; then
+			read -r -p "==> Continue anyway? [Y/n] " REPLY
+			case "$REPLY" in
+				[nN]|[nN][oO]) echo; cecho "[INFO] Aborted by user." cyan; exit 0 ;;
+			esac
+		fi
+	fi
+
+	local aur_url="https://aur.archlinux.org/${helper}.git"
+
+	if [ "$DRY_RUN" = "true" ]; then
+		cecho "[DRY-RUN] Would reinstall $helper as $aur_user from AUR:" cyan
+		cecho "[DRY-RUN]   git clone $aur_url /tmp/${helper}-reinstall-<pid>" cyan
+		cecho "[DRY-RUN]   cd /tmp/${helper}-reinstall-<pid> && makepkg -si --noconfirm" cyan
+		cecho "[DRY-RUN]   rm -rf /tmp/${helper}-reinstall-<pid>" cyan
+		return 0
+	fi
+
+	# Create a temp build directory owned by the AUR user
+	local tmp_dir
+	tmp_dir=$(mktemp -d "/tmp/${helper}-reinstall-XXXXXX")
+	chown "$aur_user": "$tmp_dir"
+
+	# Sudoers drop-in so makepkg can call 'sudo pacman' to install the built package.
+	# Scoped to pacman only; removed on function return (or exit via Error_Handler).
+	local sudoers_drop="/etc/sudoers.d/99-pac-up-aur-$$"
+	echo "$aur_user ALL=(root) NOPASSWD: /usr/bin/pacman" > "$sudoers_drop"
+	chmod 440 "$sudoers_drop"
+	trap 'rm -f "$sudoers_drop"; rm -rf "$tmp_dir"' RETURN
+
+	cecho "[INFO] Cloning ${helper} from AUR into $tmp_dir..." cyan
+	if ! runuser -u "$aur_user" -- git clone "$aur_url" "$tmp_dir"; then
+		cecho "[ERROR] Failed to clone ${helper} from AUR." red
+		Error_Handler
+	fi
+
+	cecho "[INFO] Building and installing ${helper} as $aur_user..." cyan
+	if ! runuser -u "$aur_user" -- bash -c "cd '$tmp_dir' && makepkg -si --noconfirm"; then
+		cecho "[ERROR] makepkg failed for ${helper}. See output above for details." red
+		Error_Handler
+	fi
+
+	cecho "[INFO] ${helper} reinstalled successfully." boldgreen
+}
+
 ## EXECUTION ##
 Set_BASH_Options
 Load_Config
@@ -693,6 +875,20 @@ Initialize_Logging
 Detect_Bin_Paths
 Sanity_Check
 Apply_Resource_Limits
+
+# Reinstall mode: perform the requested action and exit, bypassing normal maintenance.
+if [ -n "$REINSTALL_HELPER" ]; then
+	for helper in $REINSTALL_HELPER; do
+		if [ "$DRY_RUN" = "true" ]; then
+			Print_Header "Reinstalling ${helper} (dry-run)..."
+		else
+			Print_Header "Reinstalling ${helper}..."
+		fi
+		Reinstall_AUR_Helper "$helper"
+	done
+	Print_Header "Finished."
+	exit 0
+fi
 
 # Only show the export section if there is something to export
 if [ -n "$EXPORT_VARS" ] || [ "$DRY_RUN" = "true" ]; then
@@ -765,6 +961,7 @@ PAC_OPTS=""
 		Print_Header "Cleaning package cache..."
 	fi
 	Clean_Cache
+	Clean_AUR_Cache
 }
 
 [ "$ENABLE_ORPHAN_CLEANUP" = "true" ] && {
