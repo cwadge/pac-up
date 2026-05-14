@@ -13,7 +13,9 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
 
 - **Kernel Cleanup:** Removes outdated kernels, keeping the current and previous versions.
 
-- **Cache Cleaning:** Manages pacman cache with paccache or basic cleanup, and can purge orphaned packages.
+- **Cache Cleaning:** Manages pacman cache with paccache or basic cleanup. Also cleans yay and paru build caches if present, including orphaned cache directories left behind after uninstalling either helper.
+
+- **AUR Helper Reinstall:** Can reinstall yay and/or paru from the AUR via `--reinstall-yay` / `--reinstall-paru`, breaking the catch-22 when an AUR helper is too broken to update itself.
 
 - **Arch News Check:** Fetches the latest Arch Linux news headlines so you know what to expect.
 
@@ -41,6 +43,8 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
   - `paru` or `yay` (for AUR updates).
 
   - `curl` (for news checks).
+
+  - `git` (for `--reinstall-yay` / `--reinstall-paru`).
 
   - `ionice` (for lower I/O priority in non-interactive mode).
 
@@ -110,6 +114,10 @@ sudo pac-up --no-interactive
 --dry-run-hooks          Run hook scripts during --dry-run, passing IS_DRY_RUN=true (default)
 --no-dry-run-hooks       List hooks during --dry-run without executing them
 --install                Create config and hook directories
+--install-yay            Install or reinstall yay from the AUR (alias: --reinstall-yay)
+--reinstall-yay          Install or reinstall yay from the AUR (alias: --install-yay)
+--install-paru           Install or reinstall paru from the AUR (alias: --reinstall-paru)
+--reinstall-paru         Install or reinstall paru from the AUR (alias: --install-paru)
 --help                   Display this help message
 ```
 ### Configuration
@@ -126,9 +134,9 @@ Preview all changes before committing to them with `--dry-run`. This mode shows 
 
 - **Mirror Optimization:** Shows which mirror tool would be used and with what settings
 - **Arch News:** Normal display (read-only operation)
-- **System Updates:** Downloads package lists, then shows what would be upgraded (using `pacman -Sup`)
+- **System Updates:** Downloads package lists, then shows what would be upgraded (using `pacman -Qu`)
 - **AUR Updates:** Shows available AUR updates (using `yay -Qua` or `paru -Qua`)
-- **Cache Cleaning:** Shows current cache size and what would be cleaned
+- **Cache Cleaning:** Shows current pacman cache size and what paccache would prune. Also reports yay/paru cache sizes and what would be removed.
 - **Orphan Cleanup:** Lists orphaned packages that would be removed
 - **Kernel Cleanup:** Lists old kernels that would be removed
 - **Hooks:** Executed with `IS_DRY_RUN=true` exported so they can skip side effects; use `--no-dry-run-hooks` to list only
@@ -207,6 +215,11 @@ https://mirror.example.com/archlinux/extra/os/x86_64/firefox-122.0-1-x86_64.pkg.
 
 [DRY-RUN] Current package cache size: 2.3G
 [DRY-RUN] Would keep last 3 versions of cached packages (paccache -r)
+[DRY-RUN] Found yay cache: /home/user/.cache/yay (4.1M)
+[DRY-RUN] Would run: runuser -u user -- /usr/bin/yay -Sc --aur --noconfirm
+[DRY-RUN] Found paru cache: /home/user/.cache/paru (30G)
+[DRY-RUN] Would remove contents of: /home/user/.cache/paru/clone
+[DRY-RUN] Would remove contents of: /home/user/.cache/paru/diff
 
 [DRY-RUN] No orphaned packages found
 
@@ -249,6 +262,12 @@ Here's what it looks like in action, including running a post-hook script:
 ╚════════════════════════════════════════════════════════════════╝
 [INFO] Keeping last 3 versions of cached packages...
 ==> no candidate packages found for pruning
+[INFO] Cleaning yay cache (4.1M) as chris...
+
+Build directory: /home/chris/.cache/yay
+removing AUR packages from cache...
+removing untracked AUR files from cache...
+[INFO] Cleaning paru cache (30G)...
 ╔════════════════════════════════════════════════════════════════╗
 ║                  Removing orphaned packages...                 ║
 ╚════════════════════════════════════════════════════════════════╝
@@ -273,6 +292,23 @@ yt-dlp is up to date (stable@2025.06.30 from yt-dlp/yt-dlp)
 ╚════════════════════════════════════════════════════════════════╝
 ```
 (Normally output is color-coded, if the terminal supports it.)
+
+## AUR Helper Reinstall
+
+If yay or paru is broken — typically after a pacman API change or a failed upgrade — it can't update itself through normal means. `--reinstall-yay` and `--reinstall-paru` break this catch-22 by cloning the PKGBUILD directly from the AUR and building it with `makepkg`, bypassing the broken helper entirely.
+
+Both flags can be combined to reinstall both helpers in one run:
+
+```bash
+sudo pac-up --reinstall-paru
+sudo pac-up --reinstall-yay --reinstall-paru
+```
+
+`--install-yay` and `--install-paru` are aliases for the same operations, since reinstalling and fresh-installing follow the same path.
+
+**Build dependencies:** yay requires `go`; paru requires `rust`. If either is absent, pac-up will warn and prompt before proceeding, as the toolchain download can be several hundred MB. On a system that has previously had the helper installed, the toolchain is almost certainly already present.
+
+**Note:** This mode runs as the AUR user (resolved from `AUR_USER` in config, or `$SUDO_USER`) and requires `git`. It bypasses the normal maintenance flow entirely and exits after the reinstall completes.
 
 ## Hooks
 
