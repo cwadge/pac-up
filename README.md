@@ -4,48 +4,28 @@ A comprehensive update script for Arch Linux and derivatives, designed to stream
 
 ## Features
 - **Mirror Optimization:** Uses reflector or pacman-mirrors with GeoIP default or custom countries.
-
 - **System Updates:** Runs pacman -Syu for core packages.
-
 - **Dry-Run Mode:** Preview all changes without modifying the system.
-
 - **AUR Support:** Can do AUR updates via yay or paru if installed.
-
 - **Kernel Cleanup:** Removes outdated kernels, keeping the current and previous versions.
-
 - **Cache Cleaning:** Manages pacman cache with paccache or basic cleanup. Also cleans yay and paru build caches if present, including orphaned cache directories left behind after uninstalling either helper.
-
 - **AUR Helper Reinstall:** Can reinstall yay and/or paru from the AUR via `--reinstall-yay` / `--reinstall-paru`, breaking the catch-22 when an AUR helper is too broken to update itself.
-
 - **Arch News Check:** Fetches the latest Arch Linux news headlines so you know what to expect.
-
 - **Extensible via Hooks:** Pre, post, and failure hooks in /etc/pac-up.d for customization.
-
 - **Resource Control:** Adjustable nice and ionice for non-interactive runs.
-
 - **Logging:** Optional logs to /var/log/pac-up.log.
 
 ## Requirements
 - `Arch Linux`-based system (e.g. Arch, Manjaro, etc.)
-
 - `Bash` (works with sh, but error handling’s weaker).
-
 - `pacman` (core requirement).
-
 - `Root` privileges (sudo or direct root).
-
 - **Optional:**
-
   - `reflector` or `pacman-mirrors` (for mirror optimization).
-
   - `paccache` (for advanced cache cleaning - included in `pacman-contrib` package).
-
   - `paru` or `yay` (for AUR updates).
-
   - `curl` (for news checks).
-
   - `git` (for `--reinstall-yay` / `--reinstall-paru`).
-
   - `ionice` (for lower I/O priority in non-interactive mode).
 
 ## Installation
